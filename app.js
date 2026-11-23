@@ -32,7 +32,7 @@
     return free[S.players.findIndex((x) => x.id === id) % Math.max(1, free.length)] || "#64748b";
   };
   const pname = (id) => (S.players.find((p) => p.id === id) || { name: id }).name;
-  const dot = (id) => `<i class="dot" style="background:${color(id)}"></i>`;
+  const dot = (id) => { const p = S.players.find((x) => x.id === id); return p?.photo ? `<img class="mini" src="${p.photo}" alt="" style="--c:${color(id)}">` : `<i class="dot" style="background:${color(id)}"></i>`; };
 
   function toast(msg, ms = 2500) { const t = $("#toast"); t.textContent = msg; t.classList.remove("hidden"); clearTimeout(t._t); t._t = setTimeout(() => t.classList.add("hidden"), ms); }
 
