@@ -446,11 +446,12 @@
       ${E.w ? `<p class="small muted">Kraj partije:</p>
       <div class="chips">
         <button class="chip ${E.t === "F" ? "on" : ""}" data-t="F">Finale 1 na 1</button>
-        ${others.length >= 2 ? `<button class="chip ${E.t === "2" ? "on" : ""}" data-t="2">Protiv 2</button>` : ""}
-        ${others.length >= 4 ? `<button class="chip ${E.t === "3" ? "on" : ""}" data-t="3">Protiv 3</button>` : ""}
-        ${others.length >= 3 ? `<button class="chip ${E.t === "A" ? "on" : ""}" data-t="A">Protiv svih (${others.length})</button>` : ""}
+        ${others.length >= 2 ? `<button class="chip ${E.t === "M" ? "on" : ""}" data-t="M">Protiv više</button>` : ""}
       </div>
-      ${E.t !== "A" ? `<p class="small muted">${E.t === "F" ? "Protivnik u finalu:" : `Izaberi ${E.t} protivnika:`}</p><div class="chips">${others.map((id) => chip(id, E.l.includes(id), "data-l")).join("")}</div>` : ""}` : ""}
+      <p class="small muted">${E.t === "F" ? "Protivnik u finalu:" : "Protiv koga (svi koji su ostali do kraja):"}</p>
+      <div class="chips">${others.map((id) => chip(id, E.l.includes(id), "data-l")).join("")}
+        ${E.t === "M" ? `<button class="chip" id="allOpp">Svi (${others.length})</button>` : ""}</div>
+      ${E.t === "M" && E.l.length >= 2 ? `<p class="small muted">= ${E.l.length === others.length && others.length >= 3 ? "pobeda protiv svih" : `pobeda protiv ${E.l.length}`}</p>` : ""}` : ""}
       ${E.w ? `<p class="small muted">Istaknuta partija?</p><div class="chips">
         <button class="chip ${E.h == null ? "on" : ""}" data-h="">Ne</button>
         <button class="chip ${typeof E.h === "number" && E.h >= 190 ? "on" : ""}" data-h="clutch">⚡ Clutch</button>
@@ -458,7 +459,7 @@
         <button class="chip ${E.h === "HIO" ? "on" : ""}" data-h="HIO">⛳ Hole in one</button></div>
         ${typeof E.h === "number" && E.h >= 190 ? `<label class="small muted">Najviše poena u toku partije (190–200) <input id="eClutch" type="number" min="190" max="200" value="${E.h}" inputmode="numeric"></label>` : ""}` : ""}
       <button id="addGame" class="primary" ${canAdd() ? "" : "disabled"}>${editing ? `💾 Sačuvaj ispravku ${partNo}. partije` : `+ Dodaj ${partNo}. partiju`}</button>
-      ${canAdd() ? "" : `<p class="small warn hint">👆 ${!E.w ? "Tapni pobednika partije." : E.t === "F" ? "Tapni protivnika u finalu." : `Tapni ${E.t} protivnika.`}</p>`}
+      ${canAdd() ? "" : `<p class="small warn hint">👆 ${!E.w ? "Tapni pobednika partije." : E.t === "F" ? "Tapni protivnika u finalu." : "Tapni bar 2 protivnika."}</p>`}
       ${editing ? `<button id="cancelEdit" class="ghost primary">Otkaži ispravku</button>` : ""}
     </div>
     ${dayGames.length ? `<h3>Bleja ${blejaNo} · ${fmtDate(E.date)} · ${dayGames.length} ${dayGames.length === 1 ? "partija" : dayGames.length < 5 ? "partije" : "partija"}</h3>
@@ -579,9 +580,9 @@ Mićko > Ugar | HIO</pre>
       else {
         const ls = m[2].split(/[,;]|\si\s/).map((n) => n.trim()).filter(Boolean).map((n) => [n, find(n)]);
         const bad = ls.filter((x) => !x[1]); if (bad.length) return errors.push(ln + `nepoznat igrač „${bad[0][0]}“`);
-        l = ls.map((x) => x[1].id); t = l.length === 1 ? "F" : l.length === 2 ? "2" : l.length === 3 ? "3" : null;
-        if (!t) return errors.push(ln + "posle > ide 1 igrač (finale), 2 ili 3 igrača, ili „svi“");
+        l = ls.map((x) => x[1].id);
         l.forEach((id) => { if (!gp.includes(id)) gp.push(id); });
+        t = l.length === 1 ? "F" : multiType(l, gp, w.id);
       }
       gp = S.players.map((p) => p.id).filter((id) => gp.includes(id));
       if (t === "A" && gp.length < 3) return errors.push(ln + "„svi“ traži bar 3 igrača u partiji");
@@ -596,7 +597,9 @@ Mićko > Ugar | HIO</pre>
     const prev = [...D.days].filter((d) => d.date < date).pop(); if (prev) return defaultPlayers(D, prev);
     return S.players.map((p) => p.id);
   }
-  function canAdd() { const E = S.edit; return E && E.w && (E.t === "A" || (E.t === "F" && E.l.length === 1) || (E.t === "2" && E.l.length === 2) || (E.t === "3" && E.l.length === 3)); }
+  function canAdd() { const E = S.edit; return E && E.w && ((E.t === "F" && E.l.length === 1) || (E.t === "M" && E.l.length >= 2)); }
+  // "Protiv više" -> tip partije: 2, 3 ili svi (A)
+  function multiType(l, gp, w) { const others = gp.filter((x) => x !== w); return l.length === others.length && others.length >= 3 ? "A" : String(Math.min(l.length, 3)); }
   bind.admin = () => {
     const E = S.edit, D = S.draft;
     const books = [...new Set(D.days.map((d) => d.book))];
@@ -619,22 +622,24 @@ Mićko > Ugar | HIO</pre>
     const ec = $("#eClutch"); if (ec) ec.onchange = () => { const v = Math.round(+ec.value); E.h = v >= 190 && v <= 200 ? v : 195; render(); };
     $$("[data-t]").forEach((b) => b.onclick = () => { E.t = b.dataset.t; E.l = []; render(); });
     $$("[data-l]").forEach((b) => b.onclick = () => {
-      const id = b.dataset.l; if (E.t === "F") E.l = [id]; else { const i = E.l.indexOf(id); i >= 0 ? E.l.splice(i, 1) : E.l.length < +E.t && E.l.push(id); }
+      const id = b.dataset.l; if (E.t === "F") E.l = [id]; else { const i = E.l.indexOf(id); i >= 0 ? E.l.splice(i, 1) : E.l.push(id); }
       render();
     });
+    const ao = $("#allOpp"); if (ao) ao.onclick = () => { E.l = E.gp.filter((x) => x !== E.w); render(); };
     const add = $("#addGame"); if (add) add.onclick = () => {
       if (E.gp.length < 2) return toast("U partiji moraju biti bar 2 igrača.");
       const day = D.days.find((d) => d.date === E.date);
       if (!day && E.gp.length < 3) return toast("Za novu bleju potrebna su najmanje 3 igrača (kvorum).");
       const wasEdit = E.editId != null;
-      putGame(D, { date: E.date, book: E.book, gp: [...E.gp], w: E.w, t: E.t, l: [...E.l], h: E.h }, E.editId);
+      const tt = E.t === "F" ? "F" : multiType(E.l, E.gp, E.w);
+      putGame(D, { date: E.date, book: E.book, gp: [...E.gp], w: E.w, t: tt, l: [...E.l], h: E.h }, E.editId);
       const keep = [...E.gp]; reset(); if (!wasEdit) E.gp = keep;
       saveDraft(); toast(wasEdit ? "Ispravka sačuvana" : "Partija dodata"); render();
     };
     const ce = $("#cancelEdit"); if (ce) ce.onclick = () => { reset(); render(); };
     $$("[data-ed]").forEach((b) => b.onclick = () => {
       const g = D.games.find((x) => x.id === +b.dataset.ed), day = D.days.find((d) => d.n === g.day);
-      Object.assign(E, { editId: g.id, gp: [...(g.p || day.p)], w: g.w, t: g.t, l: g.t === "A" ? [] : [...g.l], h: g.h ?? null });
+      Object.assign(E, { editId: g.id, gp: [...(g.p || day.p)], w: g.w, t: g.t === "F" ? "F" : "M", l: [...g.l], h: g.h ?? null });
       render(); window.scrollTo(0, $(".box.editing")?.offsetTop - 70 || 0);
     });
     $$("[data-del]").forEach((b) => b.onclick = () => { if (!confirm("Obriši ovu partiju?")) return; const id = +b.dataset.del; D.games.forEach((g) => { const d = D.days.find((x) => x.n === g.day); if (!g.p && d) g.p = [...d.p]; }); D.games = D.games.filter((g) => g.id !== id); if (E.editId === id) reset(); normalize(D); saveDraft(); render(); });
