@@ -165,7 +165,7 @@ def check(data, unos):
     return diffs
 
 # Ispravke potvrđene sa adminom (23.11.2026)
-DATE_FIX = {92: "2019-03-20"}   # kolo 92: greška u mesecu
+DATE_FIX = {92: "2019-03-20", 340: "2026-11-12"}   # kolo 92: greška u mesecu; kolo 340: u svesci 12.11.2026
 MERGE_DAYS = [(318, 319)]       # isto veče uneto kao dva kola (igrači menjani u toku večeri)
 BOOK_FIX = {"1 Yelow": "1 Yellow"}
 # "Protiv svih" sa 5 igrača koje su u stvari bile protiv 3 (provereno u sveskama 23.11.2026)

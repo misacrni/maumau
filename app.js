@@ -492,6 +492,7 @@ Vidimo se na bleji! 🃏`;
       ${E.newBook ? `<div class="row"><label>Naziv nove sveske <input id="nbName" value="${esc(E.newBook)}"></label><button id="nbOk">Otvori svesku</button><button id="nbX" class="ghost">Otkaži</button></div>
         <p class="small muted">Nova sveska počinje od ove bleje (bleja #1 u svesci). Sve statistike se mogu filtrirati po svesci.</p>`
         : `<div class="row"><button id="nbBtn" class="ghost small">📓 Nova sveska</button>
+           ${day ? `<button id="chDate" class="ghost small">📅 Promeni datum ove bleje</button>` : ""}
            <label class="grow">Ispravi raniju bleju <select id="ePast"><option value="">— izaberi —</option>${recent.map((d) => `<option value="${d.date}" ${d.date === E.date ? "selected" : ""}>${fmtDate(d.date)} · ${esc(d.book)} · bleja ${d.n} (${D.games.filter((g) => g.day === d.n).length})</option>`).join("")}</select></label></div>`}
     </div>
     <div class="box ${editing ? "editing" : ""}">
@@ -749,6 +750,15 @@ Mićko > Ugar | HIO</pre>
     const books = [...new Set(D.days.map((d) => d.book))];
     const reset = () => { E.w = null; E.l = []; E.t = "F"; E.h = null; E.gp = null; E.editId = null; };
     $("#eDate").onchange = (e) => { E.date = e.target.value; reset(); render(); };
+    const cd = $("#chDate"); if (cd) cd.onclick = () => {
+      const day = D.days.find((d) => d.date === E.date); if (!day) return;
+      const v = prompt(`Novi datum za blejo ${day.n} (sada ${fmtDate(day.date)}), u obliku dd.mm.gggg:`, fmtDate(day.date).replace(/\.$/, ""));
+      if (!v) return;
+      const m = v.trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})\.?$/); if (!m) return toast("Datum upiši kao dd.mm.gggg");
+      const nd = `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+      if (D.days.some((d) => d.date === nd && d !== day)) return toast("Za taj datum već postoji bleja.");
+      day.date = nd; E.date = nd; normalize(D); saveDraft(); toast(`Datum promenjen na ${fmtDate(nd)} — objavi da važi`); render();
+    };
     const ep = $("#ePast"); if (ep) ep.onchange = (e) => { if (!e.target.value) return; E.date = e.target.value; reset(); render(); window.scrollTo(0, 0); };
     const nb = $("#nbBtn"); if (nb) nb.onclick = () => { E.newBook = (books.length + 1) + " "; render(); const i = $("#nbName"); i.focus(); i.setSelectionRange(i.value.length, i.value.length); };
     const nx = $("#nbX"); if (nx) nx.onclick = () => { E.newBook = null; render(); };

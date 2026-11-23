@@ -26,6 +26,18 @@ IGRAČI: <svi koji su te bleje igrali, odvojeni zarezom>
 <pobednik> > <igrač> | -101                   (partija prekinuta jer je pobednik došao do −101)
 <pobednik> > <igrač> | HIO                    (Hole in one – pobedio jedno deljenje i to mu je donelo pobedu)
 
+Kako izgleda naša sveska (čitaj ovako):
+- Jedna stranica = jedna partija. Zaokružen broj gore levo = redni broj partije u svesci (napiši ga kao komentar: "# 6 Brown #90").
+- Datum je gore na stranici. Crtice „/ /“ i kružić gore desno su štampa sveske – ignoriši ih.
+- Svaka kolona je jedan igrač (ime u zaglavlju; "MALEŠ" = Lešma). Brojevi u koloni su zbir poena posle svakog deljenja.
+- Zvezdica (*) pored broja = igrač je dobio to deljenje (−10); dve zvezdice (**) = dobio deljenje žandarom (−20).
+- Crta ispod kolone = igrač je ispao (sledeći zbir bi prešao 201, pa se ne upisuje).
+- "WINNER" ispod kolone = pobednik partije. Zaokružen broj iznad pobednikove kolone = koja mu je to pobeda u svesci (možeš ga navesti u komentaru).
+- Protivnici na kraju = igrači čija kolona traje do istog (poslednjeg) reda kao pobednikova, bez ranije crte. Jedan = finale; više = "pobednik > ime1, ime2[, ime3]"; ako niko nije ispao = "pobednik > svi".
+- Ako igrač nema upise u prvom delu kolone (ušao je kasnije sa početnim zbirom), i dalje je igrao tu partiju.
+- Clutch: ako je pobednik u svojoj koloni imao zbir između 190 i 200, dodaj "| clutch <najveći takav zbir>".
+- Igrač kog nema na stranici, a bio je te bleje: "| bez: Ime".
+
 Pravila:
 - Jedna partija = jedan red, redosledom kako su igrane.
 - Igrači: Šomi, Mićko, Nikod, Lešma, Ugar (koristi tačno ta imena; Maleš = Lešma).
