@@ -75,12 +75,12 @@
       <p>Statistika naše Mau Mau bleje od 2017. Svi podaci su iz sveski i Excela, a od sada se unose ovde. Gore biraš godinu ili svesku, i svi prikazi se računaju samo za to.</p>
       <ul class="list">
         <li><b>🏆 Tabela</b> – efikasnost (pobede / odigrane partije), finala, pobede u prvoj i poslednjoj partiji, ⚡ clutch, 👑 bleje, završnica (W/L ukupno) i grafikon pobeda kroz vreme. Dodirni igrača za profil.</li>
-        <li><b>⚔️ H2H</b> – 🔥 nizovi u finalima (ko kome vezuje i koliko), matrica finala 1 na 1, H2H po igraču sa VS 2 i VS svi, rang lista duela i poređenje dva igrača.</li>
+        <li><b>⚔️ H2H</b> – 🔥 nizovi u finalima (ko kome vezuje i koliko), matrica finala 1 na 1, H2H po igraču sa VS 2, VS 3 i VS svi, rang lista duela i poređenje dva igrača.</li>
         <li><b>📊 Pregledi</b> – svi pivoti iz Excela: po godinama, sveskama, mesecima, danima, blejama (i kumulativno), prva/poslednja partija bleje, broj igrača i partija, highlight.</li>
         <li><b>⭐ Rekordi</b> – istaknute partije (⚡ clutch 190–200, 💥 −101, ⛳ Hole in one), trenutni nizovi i najduži nizovi pobeda i bez pobede.</li>
         <li><b>📖 Istorija</b> – svaka bleja i svaka partija, pretraga po datumu, svesci i igraču.</li>
       </ul>
-      <p class="muted small">Pojmovi: <b>finale</b> = poslednja dva igrača u partiji; <b>vs 2</b> = pobeda kad su na kraju ostala još dvojica; <b>vs svi</b> = pobeda pre nego što je iko ispao; <b>niz</b> se računa samo kroz partije u kojima je igrač igrao.</p>
+      <p class="muted small">Pojmovi: <b>finale</b> = poslednja dva igrača u partiji; <b>vs 2 / vs 3</b> = pobeda kad su na kraju ostala još dvojica / trojica; <b>vs svi</b> = pobeda pre nego što je iko ispao; <b>niz</b> se računa samo kroz partije u kojima je igrač igrao.</p>
       ${r ? `<h2>${esc(r.title)}</h2><p class="muted">${esc(r.sub)}</p>${r.sections.map((sc) => `<details class="box"><summary>${esc(sc.h)}</summary><table class="grid rules"><tbody>${sc.items.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("")}</tbody></table></details>`).join("")}` : ""}`);
   }
   $("#infoBtn").onclick = info;
@@ -177,19 +177,19 @@
     <p class="muted small">${filterLabel()} · ${fmtDate(first.date)} – ${fmtDate(last.date)}</p>
     <h2>Tabela</h2>
     <div class="tw"><table class="grid sticky">
-      <thead><tr><th>#</th><th>Igrač</th><th title="Odigrane partije">Odigr.</th><th>Pob.</th><th>Efik.</th><th title="Učešće u finalu 1 na 1">Finala</th><th title="% partija u kojima je bio u finalu">U fin.%</th><th title="Dobijena – izgubljena finala">F W-L</th><th title="% dobijenih finala 1 na 1">% 1:1</th><th title="Pobeda protiv 2 igrača">vs 2</th><th title="Pobeda protiv svih">vs svi</th><th title="Pobede u prvoj partiji bleje">Prva</th><th title="Pobede u poslednjoj partiji bleje">Posl.</th><th title="Pobede posle 190–200 poena u toku partije">⚡ Clutch</th><th title="Pobeda prekidom na −101 / Hole in one">💥/⛳</th><th title="Bleje na kojima je imao najviše pobeda (ili delio prvo mesto)">👑 Bleje</th><th title="Na koliko bleja je bio">Bio na bleji</th></tr></thead>
+      <thead><tr><th>#</th><th>Igrač</th><th title="Odigrane partije">Odigr.</th><th>Pob.</th><th>Efik.</th><th title="Učešće u finalu 1 na 1">Finala</th><th title="% partija u kojima je bio u finalu">U fin.%</th><th title="Dobijena – izgubljena finala">F W-L</th><th title="% dobijenih finala 1 na 1">% 1:1</th><th title="Pobeda protiv 2 igrača">vs 2</th><th title="Pobeda protiv 3 igrača">vs 3</th><th title="Pobeda protiv svih">vs svi</th><th title="Pobede u prvoj partiji bleje">Prva</th><th title="Pobede u poslednjoj partiji bleje">Posl.</th><th title="Pobede posle 190–200 poena u toku partije">⚡ Clutch</th><th title="Pobeda prekidom na −101 / Hole in one">💥/⛳</th><th title="Bleje na kojima je imao najviše pobeda (ili delio prvo mesto)">👑 Bleje</th><th title="Na koliko bleja je bio">Bio na bleji</th></tr></thead>
       <tbody>${t.map((s, i) => `<tr data-p="${s.id}" class="click">
         <td>${i + 1}</td><td class="nm">${dot(s.id)}${esc(s.name)}</td><td>${s.played}</td><td><b>${s.wins}</b></td>
         <td><span class="bar" style="--w:${s.eff * 100 / Math.max(...t.map((x) => x.eff))}%;--c:${color(s.id)}">${pct(s.eff, 1)}</span></td>
-        <td>${s.finals}</td><td>${pct(s.finRate)}</td><td>${s.finW}-${s.finL}</td><td>${pct(s.fin1v1)}</td><td>${s.w2}</td><td>${s.wA}</td><td>${s.firstW}</td><td>${s.lastW}</td><td><b>${s.clutch}</b></td><td>${s.m101}/${s.hio}</td><td>${s.nightBest}</td><td>${s.days}</td></tr>`).join("")}</tbody>
+        <td>${s.finals}</td><td>${pct(s.finRate)}</td><td>${s.finW}-${s.finL}</td><td>${pct(s.fin1v1)}</td><td>${s.w2}</td><td>${s.w3}</td><td>${s.wA}</td><td>${s.firstW}</td><td>${s.lastW}</td><td><b>${s.clutch}</b></td><td>${s.m101}/${s.hio}</td><td>${s.nightBest}</td><td>${s.days}</td></tr>`).join("")}</tbody>
     </table></div>
     <p class="muted small">Efikasnost = pobede / odigrane partije. Dodirni igrača za profil.</p>
-    <h2>Završnica (finala, vs 2, vs svi)</h2>
-    <div class="tw"><table class="grid sticky"><thead><tr><th>#</th><th>Igrač</th><th>Dobio fin.</th><th>Izgubio fin.</th><th>Finala</th><th>% 1:1</th><th>Win vs 2</th><th>Win vs svi</th><th>Σ W vs 2+svi</th><th>W ukupno</th><th>L ukupno</th><th>W+L</th><th>% W ukupno</th></tr></thead><tbody>
-    ${tEnd.map((s, i) => `<tr data-p="${s.id}" class="click"><td>${i + 1}</td><td class="nm">${dot(s.id)}${esc(s.name)}</td><td>${s.finW}</td><td>${s.finL}</td><td>${s.finals}</td><td>${pct(s.fin1v1, 1)}</td><td>${s.w2}</td><td>${s.wA}</td><td>${s.wEnd}</td><td><b>${s.WT}</b></td><td>${s.LT}</td><td>${s.WT + s.LT}</td><td><b>${pct(s.pctWT, 1)}</b></td></tr>`).join("")}
-    <tr class="tot"><td></td><td class="nm">Ukupno</td>${["finW", "finL", "finals"].map((k) => `<td>${t.reduce((a, s) => a + s[k], 0)}</td>`).join("")}<td></td>${["w2", "wA", "wEnd", "WT", "LT"].map((k) => `<td>${t.reduce((a, s) => a + s[k], 0)}</td>`).join("")}<td>${t.reduce((a, s) => a + s.WT + s.LT, 0)}</td><td></td></tr>
+    <h2>Završnica (finala, vs 2, vs 3, vs svi)</h2>
+    <div class="tw"><table class="grid sticky"><thead><tr><th>#</th><th>Igrač</th><th>Dobio fin.</th><th>Izgubio fin.</th><th>Finala</th><th>% 1:1</th><th>Win vs 2</th><th>Win vs 3</th><th>Win vs svi</th><th>Σ W vs 2/3/svi</th><th>W ukupno</th><th>L ukupno</th><th>W+L</th><th>% W ukupno</th></tr></thead><tbody>
+    ${tEnd.map((s, i) => `<tr data-p="${s.id}" class="click"><td>${i + 1}</td><td class="nm">${dot(s.id)}${esc(s.name)}</td><td>${s.finW}</td><td>${s.finL}</td><td>${s.finals}</td><td>${pct(s.fin1v1, 1)}</td><td>${s.w2}</td><td>${s.w3}</td><td>${s.wA}</td><td>${s.wEnd}</td><td><b>${s.WT}</b></td><td>${s.LT}</td><td>${s.WT + s.LT}</td><td><b>${pct(s.pctWT, 1)}</b></td></tr>`).join("")}
+    <tr class="tot"><td></td><td class="nm">Ukupno</td>${["finW", "finL", "finals"].map((k) => `<td>${t.reduce((a, s) => a + s[k], 0)}</td>`).join("")}<td></td>${["w2", "w3", "wA", "wEnd", "WT", "LT"].map((k) => `<td>${t.reduce((a, s) => a + s[k], 0)}</td>`).join("")}<td>${t.reduce((a, s) => a + s.WT + s.LT, 0)}</td><td></td></tr>
     </tbody></table></div>
-    <p class="muted small">L ukupno = izgubljena finala + porazi kad je neko pobedio protiv 2 ili protiv svih. Kao tabela „Finala“ na listu Pregledi.</p>
+    <p class="muted small">L ukupno = izgubljena finala + porazi kad je neko pobedio protiv 2, protiv 3 ili protiv svih. Kao tabela „Finala“ na listu Pregledi.</p>
     <h2>Pobede kroz vreme</h2>
     ${chart(g)}`;
   }
@@ -242,7 +242,7 @@
         <div class="card"><b>${me.finW}-${me.finL}</b><span>finala (${pct(me.fin1v1)})</span></div>
       </div>
       <p>Trenutno: ${st.current ? (st.current.kind === "W" ? `🔥 niz od <b>${st.current.len}</b> pobeda` : `${st.current.len} partija bez pobede`) : "–"}</p>
-      <h3>H2H (finala, vs 2, vs svi)</h3>
+      <h3>H2H (finala, vs 2, vs 3, vs svi)</h3>
       ${h2hTable(g, id)}
       <h3>Po godinama</h3>
       <table class="grid"><thead><tr><th>Godina</th><th>Efikasnost</th></tr></thead><tbody>
@@ -254,7 +254,7 @@
     const h = Stats.playerH2H(g, S.players, id);
     const row = (r, cls = "") => `<tr class="${cls}"><td class="nm">${r.id ? dot(r.id) : ""}${esc(r.label)}</td><td>${r.w}</td><td>${r.l}</td><td>${r.w + r.l}</td><td>${r.w + r.l ? pct(r.w / (r.w + r.l), 1) : "–"}</td></tr>`;
     return `<table class="grid"><thead><tr><th>${esc(pname(id))} H2H</th><th>Dobio</th><th>Izgubio</th><th>Ukupno</th><th>% pobeda</th></tr></thead><tbody>
-      ${h.rows.map((r) => row(r)).join("")}${row(h.v2)}${row(h.vA)}${row(h.tot, "tot")}</tbody></table>`;
+      ${h.rows.map((r) => row(r)).join("")}${row(h.v2)}${h.v3.w + h.v3.l ? row(h.v3) : ""}${row(h.vA)}${row(h.tot, "tot")}</tbody></table>`;
   }
 
   // ---------- H2H ----------
@@ -302,7 +302,7 @@
       <table class="grid"><tbody>
         <tr><td>Partije u kojima su igrali zajedno</td><td colspan="2"><b>${P.both}</b></td></tr>
         <tr><td>Pobede u tim partijama</td><td>${dot(S.pair.a)}${P.winsA}</td><td>${dot(S.pair.b)}${P.winsB}</td></tr>
-        <tr><td>Pobedio drugog na kraju (finale, vs 2, vs svi)</td><td>${dot(S.pair.a)}${P.beatA}</td><td>${dot(S.pair.b)}${P.beatB}</td></tr>
+        <tr><td>Pobedio drugog na kraju (finale, vs 2, vs 3, vs svi)</td><td>${dot(S.pair.a)}${P.beatA}</td><td>${dot(S.pair.b)}${P.beatB}</td></tr>
       </tbody></table>
       <h3>Poslednja finala</h3>
       <ul class="list">${P.lastFinals.map((x) => `<li>${fmtDate(x.date)} — ${dot(x.w)}<b>${esc(pname(x.w))}</b> pobedio</li>`).join("") || "<li class='muted'>Nema finala.</li>"}</ul>` : ""}`;
@@ -386,7 +386,7 @@
     if (S.histPlayer) days = days.filter(([, gs]) => gs[0].p.includes(S.histPlayer));
     if (S.histQ) days = days.filter(([, gs]) => fmtDate(gs[0].date).includes(S.histQ) || gs[0].book.toLowerCase().includes(S.histQ.toLowerCase()));
     const shown = days.slice(0, 60);
-    const desc = (x) => x.t === "F" ? `pobedio ${dot(x.l[0])}${esc(pname(x.l[0]))} u finalu` : x.t === "2" ? `pobedio ${x.l.map((i) => esc(pname(i))).join(" i ")}` : "pobedio sve";
+    const desc = (x) => x.t === "F" ? `pobedio ${dot(x.l[0])}${esc(pname(x.l[0]))} u finalu` : (x.t === "2" || x.t === "3") ? `pobedio ${x.l.map((i) => esc(pname(i))).join(", ").replace(/, ([^,]*)$/, " i $1")}` : "pobedio sve";
     return `<div class="row"><input id="hq" type="search" placeholder="Datum (npr. 3.2025) ili sveska" value="${esc(S.histQ)}">
       <select id="hp"><option value="">Svi igrači</option>${S.players.map((p) => `<option value="${p.id}" ${S.histPlayer === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></div>
       <p class="muted small">${days.length} bleja${days.length > 60 ? " (prikazano 60)" : ""}</p>
@@ -447,9 +447,10 @@
       <div class="chips">
         <button class="chip ${E.t === "F" ? "on" : ""}" data-t="F">Finale 1 na 1</button>
         ${others.length >= 2 ? `<button class="chip ${E.t === "2" ? "on" : ""}" data-t="2">Protiv 2</button>` : ""}
+        ${others.length >= 4 ? `<button class="chip ${E.t === "3" ? "on" : ""}" data-t="3">Protiv 3</button>` : ""}
         ${others.length >= 3 ? `<button class="chip ${E.t === "A" ? "on" : ""}" data-t="A">Protiv svih (${others.length})</button>` : ""}
       </div>
-      ${E.t !== "A" ? `<p class="small muted">${E.t === "F" ? "Protivnik u finalu:" : "Izaberi 2 protivnika:"}</p><div class="chips">${others.map((id) => chip(id, E.l.includes(id), "data-l")).join("")}</div>` : ""}` : ""}
+      ${E.t !== "A" ? `<p class="small muted">${E.t === "F" ? "Protivnik u finalu:" : `Izaberi ${E.t} protivnika:`}</p><div class="chips">${others.map((id) => chip(id, E.l.includes(id), "data-l")).join("")}</div>` : ""}` : ""}
       ${E.w ? `<p class="small muted">Istaknuta partija?</p><div class="chips">
         <button class="chip ${E.h == null ? "on" : ""}" data-h="">Ne</button>
         <button class="chip ${typeof E.h === "number" && E.h >= 190 ? "on" : ""}" data-h="clutch">⚡ Clutch</button>
@@ -457,7 +458,7 @@
         <button class="chip ${E.h === "HIO" ? "on" : ""}" data-h="HIO">⛳ Hole in one</button></div>
         ${typeof E.h === "number" && E.h >= 190 ? `<label class="small muted">Najviše poena u toku partije (190–200) <input id="eClutch" type="number" min="190" max="200" value="${E.h}" inputmode="numeric"></label>` : ""}` : ""}
       <button id="addGame" class="primary" ${canAdd() ? "" : "disabled"}>${editing ? `💾 Sačuvaj ispravku ${partNo}. partije` : `+ Dodaj ${partNo}. partiju`}</button>
-      ${canAdd() ? "" : `<p class="small warn hint">👆 ${!E.w ? "Tapni pobednika partije." : E.t === "F" ? "Tapni protivnika u finalu." : "Tapni 2 protivnika."}</p>`}
+      ${canAdd() ? "" : `<p class="small warn hint">👆 ${!E.w ? "Tapni pobednika partije." : E.t === "F" ? "Tapni protivnika u finalu." : `Tapni ${E.t} protivnika.`}</p>`}
       ${editing ? `<button id="cancelEdit" class="ghost primary">Otkaži ispravku</button>` : ""}
     </div>
     ${dayGames.length ? `<h3>Bleja ${blejaNo} · ${fmtDate(E.date)} · ${dayGames.length} ${dayGames.length === 1 ? "partija" : dayGames.length < 5 ? "partije" : "partija"}</h3>
@@ -471,6 +472,7 @@
 IGRAČI: Šomi, Mićko, Nikod, Lešma, Ugar
 Šomi > Mićko
 Nikod > Lešma, Ugar
+Šomi > Mićko, Nikod, Ugar
 Lešma > svi
 Ugar > Šomi | bez: Mićko
 Šomi > Nikod | clutch 197
@@ -504,7 +506,7 @@ Mićko > Ugar | HIO</pre>
   function swatches(cur, taken, attr) {
     return `<div class="sw">${PALETTE.map(([c, n]) => { const t = taken.includes(c); return `<button type="button" class="swb ${c === cur ? "on" : ""}" ${t ? "disabled" : ""} title="${n}${t ? " (zauzeta)" : ""}" style="--c:${c}" data-k="${attr}" data-c="${c}"></button>`; }).join("")}</div>`;
   }
-  const gdesc = (x) => x.t === "F" ? `finale vs ${esc(pname(x.l[0]))}` : x.t === "2" ? `vs ${x.l.map((i) => esc(pname(i))).join(" i ")}` : "vs svi";
+  const gdesc = (x) => x.t === "F" ? `finale vs ${esc(pname(x.l[0]))}` : (x.t === "2" || x.t === "3") ? `vs ${x.l.map((i) => esc(pname(i))).join(", ").replace(/, ([^,]*)$/, " i $1")}` : "vs svi";
   // Igrači za novu partiju: kao prethodna partija te bleje, inače kao poslednja bleja
   function defaultPlayers(D, day) {
     const order = (arr) => S.players.map((p) => p.id).filter((id) => arr.includes(id));
@@ -577,8 +579,8 @@ Mićko > Ugar | HIO</pre>
       else {
         const ls = m[2].split(/[,;]|\si\s/).map((n) => n.trim()).filter(Boolean).map((n) => [n, find(n)]);
         const bad = ls.filter((x) => !x[1]); if (bad.length) return errors.push(ln + `nepoznat igrač „${bad[0][0]}“`);
-        l = ls.map((x) => x[1].id); t = l.length === 1 ? "F" : l.length === 2 ? "2" : null;
-        if (!t) return errors.push(ln + "posle > ide 1 igrač (finale), 2 igrača ili „svi“");
+        l = ls.map((x) => x[1].id); t = l.length === 1 ? "F" : l.length === 2 ? "2" : l.length === 3 ? "3" : null;
+        if (!t) return errors.push(ln + "posle > ide 1 igrač (finale), 2 ili 3 igrača, ili „svi“");
         l.forEach((id) => { if (!gp.includes(id)) gp.push(id); });
       }
       gp = S.players.map((p) => p.id).filter((id) => gp.includes(id));
@@ -594,7 +596,7 @@ Mićko > Ugar | HIO</pre>
     const prev = [...D.days].filter((d) => d.date < date).pop(); if (prev) return defaultPlayers(D, prev);
     return S.players.map((p) => p.id);
   }
-  function canAdd() { const E = S.edit; return E && E.w && (E.t === "A" || (E.t === "F" && E.l.length === 1) || (E.t === "2" && E.l.length === 2)); }
+  function canAdd() { const E = S.edit; return E && E.w && (E.t === "A" || (E.t === "F" && E.l.length === 1) || (E.t === "2" && E.l.length === 2) || (E.t === "3" && E.l.length === 3)); }
   bind.admin = () => {
     const E = S.edit, D = S.draft;
     const books = [...new Set(D.days.map((d) => d.book))];
@@ -617,7 +619,7 @@ Mićko > Ugar | HIO</pre>
     const ec = $("#eClutch"); if (ec) ec.onchange = () => { const v = Math.round(+ec.value); E.h = v >= 190 && v <= 200 ? v : 195; render(); };
     $$("[data-t]").forEach((b) => b.onclick = () => { E.t = b.dataset.t; E.l = []; render(); });
     $$("[data-l]").forEach((b) => b.onclick = () => {
-      const id = b.dataset.l; if (E.t === "F") E.l = [id]; else { const i = E.l.indexOf(id); i >= 0 ? E.l.splice(i, 1) : E.l.length < 2 && E.l.push(id); }
+      const id = b.dataset.l; if (E.t === "F") E.l = [id]; else { const i = E.l.indexOf(id); i >= 0 ? E.l.splice(i, 1) : E.l.length < +E.t && E.l.push(id); }
       render();
     });
     const add = $("#addGame"); if (add) add.onclick = () => {

@@ -2,7 +2,7 @@
 const Stats = (() => {
   const DANI = ["ponedeljak", "utorak", "sreda", "četvrtak", "petak", "subota", "nedelja"];
   const MESECI = ["jan", "feb", "mar", "apr", "maj", "jun", "jul", "avg", "sep", "okt", "nov", "dec"];
-  const TIP = { F: "Finale 1 na 1", 2: "Pobeda protiv 2", A: "Pobeda protiv svih" };
+  const TIP = { F: "Finale 1 na 1", 2: "Pobeda protiv 2", 3: "Pobeda protiv 3", A: "Pobeda protiv svih" };
   // Istaknute partije: clutch = pobeda posle 190–200 poena u toku partije; -101 = prekid i pobeda; HIO = Hole in one
   const hlKind = (h) => h === "HIO" ? "hio" : h === -101 ? "m101" : (typeof h === "number" && h >= 190 && h <= 200) ? "clutch" : null;
   const HL = { clutch: { icon: "⚡", label: "Clutch" }, m101: { icon: "💥", label: "−101" }, hio: { icon: "⛳", label: "Hole in one" } };
@@ -35,7 +35,7 @@ const Stats = (() => {
 
   function table(games, players) {
     const S = {};
-    players.forEach((p) => S[p.id] = { id: p.id, name: p.name, days: new Set(), played: 0, wins: 0, finals: 0, finW: 0, finL: 0, w2: 0, wA: 0, firstW: 0, lastW: 0, nightBest: 0, clutch: 0, m101: 0, hio: 0, l2: 0, lA: 0 });
+    players.forEach((p) => S[p.id] = { id: p.id, name: p.name, days: new Set(), played: 0, wins: 0, finals: 0, finW: 0, finL: 0, w2: 0, w3: 0, wA: 0, firstW: 0, lastW: 0, nightBest: 0, clutch: 0, m101: 0, hio: 0, l2: 0, l3: 0, lA: 0 });
     const nights = new Map();
     for (const g of games) {
       for (const id of g.p) { if (!S[id]) continue; S[id].played++; S[id].days.add(g.day); }
@@ -43,6 +43,7 @@ const Stats = (() => {
       w.wins++;
       if (g.t === "F") { w.finals++; w.finW++; const l = S[g.l[0]]; if (l) { l.finals++; l.finL++; } }
       else if (g.t === "2") { w.w2++; g.l.forEach((x) => S[x] && S[x].l2++); }
+      else if (g.t === "3") { w.w3++; g.l.forEach((x) => S[x] && S[x].l3++); }
       else if (g.t === "A") { w.wA++; g.l.forEach((x) => S[x] && S[x].lA++); }
       const hk = hlKind(g.h); if (hk) w[hk]++;
       if (g.first) w.firstW++;
@@ -59,8 +60,8 @@ const Stats = (() => {
       eff: s.played ? s.wins / s.played : 0,
       finRate: s.played ? s.finals / s.played : 0,
       fin1v1: s.finals ? s.finW / s.finals : 0,
-      wEnd: s.w2 + s.wA, WT: s.finW + s.w2 + s.wA, LT: s.finL + s.l2 + s.lA,
-      pctWT: (s.finW + s.w2 + s.wA + s.finL + s.l2 + s.lA) ? (s.finW + s.w2 + s.wA) / (s.finW + s.w2 + s.wA + s.finL + s.l2 + s.lA) : 0,
+      wEnd: s.w2 + s.w3 + s.wA, WT: s.finW + s.w2 + s.w3 + s.wA, LT: s.finL + s.l2 + s.l3 + s.lA,
+      pctWT: (s.finW + s.w2 + s.w3 + s.wA + s.finL + s.l2 + s.l3 + s.lA) ? (s.finW + s.w2 + s.w3 + s.wA) / (s.finW + s.w2 + s.w3 + s.wA + s.finL + s.l2 + s.l3 + s.lA) : 0,
       share: games.length ? s.wins / games.length : 0,
     })).filter((s) => s.played > 0).sort((a, b) => b.eff - a.eff).map((s, i, arr) => s);
   }
@@ -142,10 +143,11 @@ const Stats = (() => {
       return { id: p.id, label: p.name, w, l };
     }).filter((r) => r.w + r.l > 0);
     const v2 = { label: "VS 2", w: games.filter((g) => g.t === "2" && g.w === id).length, l: games.filter((g) => g.t === "2" && g.l.includes(id)).length };
+    const v3 = { label: "VS 3", w: games.filter((g) => g.t === "3" && g.w === id).length, l: games.filter((g) => g.t === "3" && g.l.includes(id)).length };
     const vA = { label: "VS ALL", w: games.filter((g) => g.t === "A" && g.w === id).length, l: games.filter((g) => g.t === "A" && g.l.includes(id)).length };
-    const all = [...rows, v2, vA];
+    const all = [...rows, v2, v3, vA];
     const tot = { label: "Ukupno", w: all.reduce((s, r) => s + r.w, 0), l: all.reduce((s, r) => s + r.l, 0) };
-    return { rows, v2, vA, tot };
+    return { rows, v2, v3, vA, tot };
   }
 
   // Rang lista svih duela (A vs B), sortirano po % pobeda
@@ -154,7 +156,7 @@ const Stats = (() => {
     players.forEach((a) => {
       const h = playerH2H(games, players, a.id);
       h.rows.forEach((r) => out.push({ a: a.id, b: r.id, label: `${a.name} vs ${r.label}`, w: r.w, l: r.l }));
-      [h.v2, h.vA].forEach((r) => r.w + r.l > 0 && out.push({ a: a.id, b: null, label: `${a.name} ${r.label}`, w: r.w, l: r.l }));
+      [h.v2, h.v3, h.vA].forEach((r) => r.w + r.l > 0 && out.push({ a: a.id, b: null, label: `${a.name} ${r.label}`, w: r.w, l: r.l }));
     });
     return out.map((r) => ({ ...r, n: r.w + r.l, pct: r.w / (r.w + r.l) })).sort((x, y) => y.pct - x.pct || y.n - x.n);
   }

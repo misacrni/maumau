@@ -19,6 +19,7 @@ BLEJA dd.mm.gggg | <naziv sveske ako se vidi, npr. 6 Brown>
 IGRAČI: <svi koji su te bleje igrali, odvojeni zarezom>
 <pobednik> > <poraženi u finalu>              (finale 1 na 1, posle > tačno jedan igrač)
 <pobednik> > <igrač1>, <igrač2>               (pobeda protiv 2 – na kraju su ostala dvojica)
+<pobednik> > <igrač1>, <igrač2>, <igrač3>     (pobeda protiv 3 – na kraju su ostala trojica)
 <pobednik> > svi                              (pobeda protiv svih – niko nije ispao)
 <pobednik> > <igrač> | bez: <ko nije igrao tu partiju>
 <pobednik> > <igrač> | clutch <190-200>       (pobednik je u toku partije imao 190–200 poena)
