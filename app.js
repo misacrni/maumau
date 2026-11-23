@@ -67,11 +67,12 @@
 
   function info() {
     const r = S.data.rules;
-    setTimeout(() => { const lo = $("#logoutBtn"); if (lo) lo.onclick = logout; }, 0);
+    setTimeout(() => { const lo = $("#logoutBtn"); if (lo) lo.onclick = logout; const is = $("#infoShare"); if (is) is.onclick = shareApp; }, 0);
     setTimeout(() => { const b = $("#enableAdmin"); if (b) b.onclick = () => { showAdmin(); $("#modal").classList.add("hidden"); S.view = "admin"; $$("#nav button").forEach((x) => x.classList.toggle("on", x.dataset.v === "admin")); render(); }; }, 0);
     modal(`<h2>ℹ️ O aplikaciji</h2>
       <div class="box"><b>✏️ Unos rezultata (admin)</b><p class="small muted">${store.get("mm_admin")?.token ? "✅ Ovaj uređaj je prijavljen kao admin (GitHub token je sačuvan)." : "Uključuje tab Unos na ovom uređaju. Za objavu je potreban GitHub token koji ima samo admin, pa igrači ne mogu ništa da promene."}</p><button id="enableAdmin">${store.get("mm_admin_on") ? "Otvori Unos" : "Uključi tab Unos"}</button></div>
       ${S.data.settings?.ntfy ? `<div class="box"><b>🔔 Obaveštenja o novim rezultatima</b><p class="small">1. Instaliraj besplatnu aplikaciju <b>ntfy</b> (App Store / Google Play).<br>2. U njoj tapni <b>+</b> i upiši temu: <code>${esc(S.data.settings.ntfy)}</code><br>3. Gotovo — posle svake bleje stiže notifikacija sa rezultatima.</p></div>` : ""}
+      <div class="box"><b>📤 Pozovi nekog u aplikaciju</b><p class="small muted">Pošalji pozdravnu poruku sa linkom, uputstvom i (po želji) lozinkom.</p><button id="infoShare">📤 Pošalji poziv</button></div>
       <div class="box"><b>🚪 Odjava</b><p class="small muted">Briše sa ovog uređaja zapamćenu lozinku ekipe i, ako postoji, admin token i nesačuvan unos.</p><button id="logoutBtn" class="ghost">Odjavi se</button></div>
       <p>Statistika naše Mau Mau bleje od 2017. Svi podaci su iz sveski i Excela, a od sada se unose ovde. Gore biraš godinu ili svesku, i svi prikazi se računaju samo za to.</p>
       <ul class="list">
@@ -85,6 +86,38 @@
       ${r ? `<h2>${esc(r.title)}</h2><p class="muted">${esc(r.sub)}</p>${r.sections.map((sc) => `<details class="box"><summary>${esc(sc.h)}</summary><table class="grid rules"><tbody>${sc.items.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("")}</tbody></table></details>`).join("")}` : ""}`);
   }
   $("#infoBtn").onclick = info;
+  // Deljenje aplikacije (link, po želji i lozinka)
+  function shareApp() {
+    const url = location.origin + location.pathname, topic = S.data.settings?.ntfy;
+    const welcome = (pw) => `🂡 *Dobrodošao u Mau Mau aplikaciju!* 🂡
+
+Ovde je sva statistika naše bleje od 2017. — pobede, efikasnost, finala, H2H, nizovi, rekordi i svaka partija.
+
+👉 ${url}${pw && S.password ? `\n🔑 Lozinka: ${S.password}` : ""}
+
+*Šta ima unutra:*
+🏆 *Tabela* – pobede, efikasnost, finala, clutch, kralj bleje, grafikon pobeda
+⚔️ *H2H* – ko kome „vezuje“ u finalima, nizovi u duelima
+📊 *Pregledi* – po godinama, sveskama, mesecima, danima, prva/poslednja partija
+⭐ *Rekordi* – clutch, Hole in one, −101, najduži nizovi i postovi
+📖 *Istorija* – svaka bleja i svaka partija
+ℹ️ *Info* – pravila igre i pojmovi
+
+Savet: otvori link u Safariju/Chrome-u i izaberi „Dodaj na početni ekran“ — radi kao prava aplikacija.${topic ? `
+
+🔔 *Obaveštenja posle bleje:* instaliraj besplatnu aplikaciju *ntfy*, tapni *+* i upiši temu *${topic}*.` : ""}
+
+Vidimo se na bleji! 🃏`;
+    modal(`<h2>📤 Pozovi nekog u aplikaciju</h2><p class="small muted">Pregledaj i po želji izmeni poruku, pa je pošalji (WhatsApp, Viber, SMS…). Lozinku dodaj samo ako šalješ nekom iz ekipe.</p>
+      <label class="chk"><input type="checkbox" id="shPw" checked> Dodaj i lozinku ekipe</label>
+      <textarea id="shText" rows="16">${esc(welcome(true))}</textarea>
+      <button id="shGo" class="primary">📤 Pošalji</button><button id="shCopy" class="primary ghost">📋 Kopiraj tekst</button>`);
+    $("#shPw").onchange = (e) => { $("#shText").value = welcome(e.target.checked); };
+    const text = () => $("#shText").value;
+    $("#shGo").onclick = () => navigator.share ? navigator.share({ title: "Mau Mau", text: text() }).catch(() => {}) : window.open("https://wa.me/?text=" + encodeURIComponent(text()), "_blank");
+    $("#shCopy").onclick = async () => { try { await navigator.clipboard.writeText(text()); toast("Kopirano"); } catch { toast("Kopiranje nije uspelo"); } };
+  }
+  $("#shareBtn").onclick = shareApp;
   function logout() {
     if (store.get("mm_draft") && !confirm("Imaš nesačuvan unos. Odjavom se briše. Nastavi?")) return;
     ["mm_pw", "mm_admin", "mm_admin_on", "mm_draft"].forEach(store.del);
@@ -507,7 +540,7 @@ Mićko > Ugar | HIO</pre>
         ${S.imp.items.length ? `<ol class="list">${S.imp.items.map((x) => `<li><span class="muted small">${fmtDate(x.date)}${x.book ? " · " + esc(x.book) : ""}</span> ${dot(x.w)}<b>${esc(pname(x.w))}</b> ${gdesc(x)} ${x.h != null ? Stats.hlText(x.h) : ""} <span class="muted small">(${x.gp.map(pname).join(", ")})</span></li>`).join("")}</ol>
         <button id="impAdd" class="primary" ${S.imp.errors.length ? "disabled" : ""}>+ Dodaj ${S.imp.items.length} partija</button>` : ""}</div>` : ""}
     </details>
-    <div class="row sticky-save"><button id="saveGh" class="primary" ${S.dirty || store.get("mm_draft") ? "" : "disabled"}>☁️ Sačuvaj i objavi</button><button id="discard" class="ghost">Odbaci izmene</button></div>
+    <div class="row sticky-save"><button id="saveGh" class="primary" ${S.dirty || store.get("mm_draft") ? "" : "disabled"} title="${S.dirty || store.get("mm_draft") ? "" : "Nema novih izmena za objavu"}">${S.dirty || store.get("mm_draft") ? "☁️ Sačuvaj i objavi" : "☁️ Nema izmena za objavu"}</button><button id="discard" class="ghost">Odbaci izmene</button></div>
     <details class="box" id="setBox" ${S.setOpen ? "open" : ""}><summary>⚙️ Podešavanja (admin, igrači i boje, lozinka, izvoz)</summary>
       <div class="form">
         <label>GitHub vlasnik <input id="cOwner" value="${esc(cfg.owner || "misacrni")}" placeholder="misacrni"></label>
@@ -532,7 +565,9 @@ Mićko > Ugar | HIO</pre>
         <hr><b>🔔 Obaveštenja</b>
         <p class="small muted">Push preko besplatne aplikacije <b>ntfy</b> (iPhone/Android). Posle svake objave igrači dobiju notifikaciju. Igrači instaliraju ntfy i pretplate se na temu (uputstvo im piše u ℹ️).</p>
         <div class="row"><label>ntfy tema <input id="ntfyTopic" value="${esc(D.settings?.ntfy || "")}" placeholder="npr. maumau-a7k3x9"></label><button id="ntfyGen" class="ghost small">Generiši</button><button id="ntfyTest" class="ghost small">Probna poruka</button></div>
-        <hr><label>Nova lozinka ekipe <input id="newPw" type="password" placeholder="ostavi prazno ako ne menjaš"></label>
+        <hr><label>Nova lozinka ekipe <input id="newPw" type="text" autocomplete="off" placeholder="npr. zandar-kec-dama7"></label>
+        <button id="pwChange">🔑 Promeni lozinku i objavi</button>
+        <p class="small muted">Posle promene svi ostali se jednom uloguju novom lozinkom. Ovaj uređaj je pamti sam.</p>
         <button id="exportJson" class="ghost">⬇ Izvoz JSON</button> <button id="exportCsv" class="ghost">⬇ Izvoz CSV</button>
       </div>
     </details>`;
@@ -772,6 +807,12 @@ Mićko > Ugar | HIO</pre>
       } catch (e) { toast("Token ne radi: " + e.message, 5000); }
     };
     $("#saveGh").onclick = publish;
+    $("#pwChange").onclick = () => {
+      const v = $("#newPw").value.trim();
+      if (v.length < 8) return toast("Lozinka treba da ima bar 8 znakova.");
+      if (!confirm(`Nova lozinka ekipe: „${v}“\nZapamti je ili zapiši — bez nje se podaci ne mogu otvoriti. Nastavi?`)) return;
+      S.dirty = true; publish();
+    };
     $$("[data-pf]").forEach((i) => i.onchange = () => { const p = D.players.find((x) => x.id === i.dataset.pid); const v = i.value.trim(); if (v) p[i.dataset.pf] = v; else delete p[i.dataset.pf]; saveDraft(); toast("Sačuvano u unosu — objavi da vide svi"); });
     $$("[data-photo]").forEach((i) => i.onchange = async () => {
       const f = i.files[0]; if (!f) return;
@@ -810,7 +851,7 @@ Mićko > Ugar | HIO</pre>
   async function publish() {
     const cfg = store.get("mm_admin");
     if (!cfg?.token || !cfg.owner || !cfg.repo) return toast("Prvo unesi GitHub podešavanja.");
-    const newPw = $("#newPw")?.value;
+    const newPw = ($("#newPw")?.value || "").trim();
     const pw = newPw || S.password;
     if (!pw) return toast("Nema lozinke ekipe — uloguj se ponovo.");
     const btn = $("#saveGh"); btn.disabled = true; btn.textContent = "Objavljujem…";
