@@ -55,6 +55,22 @@
     else $("#loginErr").textContent = "Pogrešna lozinka.";
   });
 
+  function info() {
+    const r = S.data.rules;
+    modal(`<h2>ℹ️ O aplikaciji</h2>
+      <p>Statistika naše Mau Mau bleje od 2017. Svi podaci su iz sveski i Excela, a od sada se unose ovde. Gore biraš godinu ili svesku, i svi prikazi se računaju samo za to.</p>
+      <ul class="list">
+        <li><b>🏆 Tabela</b> – efikasnost (pobede / odigrane partije), finala, pobede u prvoj i poslednjoj partiji, ⚡ clutch, 👑 večeri, završnica (W/L ukupno) i grafikon pobeda kroz vreme. Dodirni igrača za profil.</li>
+        <li><b>⚔️ H2H</b> – 🔥 nizovi u finalima (ko kome vezuje i koliko), matrica finala 1 na 1, H2H po igraču sa VS 2 i VS svi, rang lista duela i poređenje dva igrača.</li>
+        <li><b>📊 Pregledi</b> – svi pivoti iz Excela: po godinama, sveskama, mesecima, danima, večerima (i kumulativno), prva/poslednja partija, broj igrača i partija, highlight.</li>
+        <li><b>⭐ Rekordi</b> – istaknute partije (⚡ clutch 190–200, 💥 −101, ⛳ Hole in one), trenutni nizovi i najduži nizovi pobeda i bez pobede.</li>
+        <li><b>📖 Istorija</b> – svaka večer i svaka partija, pretraga po datumu, svesci i igraču.</li>
+      </ul>
+      <p class="muted small">Pojmovi: <b>finale</b> = poslednja dva igrača u partiji; <b>vs 2</b> = pobeda kad su na kraju ostala još dvojica; <b>vs svi</b> = pobeda pre nego što je iko ispao; <b>niz</b> se računa samo kroz partije u kojima je igrač igrao.</p>
+      ${r ? `<h2>${esc(r.title)}</h2><p class="muted">${esc(r.sub)}</p>${r.sections.map((sc) => `<details class="box"><summary>${esc(sc.h)}</summary><table class="grid rules"><tbody>${sc.items.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("")}</tbody></table></details>`).join("")}` : ""}`);
+  }
+  $("#infoBtn").onclick = info;
+
   function start() {
     ["#top", "#view", "#nav"].forEach((s) => $(s).classList.remove("hidden"));
     if (store.get("mm_admin") || location.hash === "#admin") $("#navAdmin").classList.remove("hidden");
@@ -95,7 +111,10 @@
     const first = g[0], last = g[g.length - 1];
     if (!g.length) return `<p class="empty">Nema partija za izabrani filter.</p>`;
     const leader = t[0];
-    return `
+    const books = [...new Set(S.data.days.map((d) => d.book))], curBook = books[books.length - 1], curYear = String(new Date().getFullYear());
+    const quick = [["Sve", "", ""], ["Aktuelna sveska (" + curBook + ")", "", curBook], ["Ova godina", curYear, ""]];
+    const tEnd = [...t].sort((a, b) => b.pctWT - a.pctWT);
+    return `<div class="chips">${quick.map(([l, y, b]) => `<button class="chip ${S.f.year === y && S.f.book === b ? "on" : ""}" data-qy="${y}" data-qb="${esc(b)}">${esc(l)}</button>`).join("")}</div>
     <div class="cards">
       <div class="card"><b>${g.length}</b><span>partija</span></div>
       <div class="card"><b>${nights}</b><span>večeri</span></div>
@@ -111,10 +130,19 @@
         <td>${s.finals}</td><td>${pct(s.finRate)}</td><td>${s.finW}-${s.finL}</td><td>${pct(s.fin1v1)}</td><td>${s.w2}</td><td>${s.wA}</td><td>${s.firstW}</td><td>${s.lastW}</td><td><b>${s.clutch}</b></td><td>${s.m101}/${s.hio}</td><td>${s.nightBest}</td><td>${s.days}</td></tr>`).join("")}</tbody>
     </table></div>
     <p class="muted small">Efikasnost = pobede / odigrane partije. Dodirni igrača za profil.</p>
+    <h2>Završnica (finala, vs 2, vs svi)</h2>
+    <div class="tw"><table class="grid sticky"><thead><tr><th>#</th><th>Igrač</th><th>Dobio fin.</th><th>Izgubio fin.</th><th>Finala</th><th>% 1:1</th><th>Win vs 2</th><th>Win vs svi</th><th>Σ W vs 2+svi</th><th>W ukupno</th><th>L ukupno</th><th>W+L</th><th>% W ukupno</th></tr></thead><tbody>
+    ${tEnd.map((s, i) => `<tr data-p="${s.id}" class="click"><td>${i + 1}</td><td class="nm">${dot(s.id)}${esc(s.name)}</td><td>${s.finW}</td><td>${s.finL}</td><td>${s.finals}</td><td>${pct(s.fin1v1, 1)}</td><td>${s.w2}</td><td>${s.wA}</td><td>${s.wEnd}</td><td><b>${s.WT}</b></td><td>${s.LT}</td><td>${s.WT + s.LT}</td><td><b>${pct(s.pctWT, 1)}</b></td></tr>`).join("")}
+    <tr class="tot"><td></td><td class="nm">Ukupno</td>${["finW", "finL", "finals"].map((k) => `<td>${t.reduce((a, s) => a + s[k], 0)}</td>`).join("")}<td></td>${["w2", "wA", "wEnd", "WT", "LT"].map((k) => `<td>${t.reduce((a, s) => a + s[k], 0)}</td>`).join("")}<td>${t.reduce((a, s) => a + s.WT + s.LT, 0)}</td><td></td></tr>
+    </tbody></table></div>
+    <p class="muted small">L ukupno = izgubljena finala + porazi kad je neko pobedio protiv 2 ili protiv svih. Kao tabela „Finala“ na listu Pregledi.</p>
     <h2>Pobede kroz vreme</h2>
     ${chart(g)}`;
   }
-  bind.tabela = () => $$("tr[data-p]").forEach((r) => r.onclick = () => profile(r.dataset.p));
+  bind.tabela = () => {
+    $$("tr[data-p]").forEach((r) => r.onclick = () => profile(r.dataset.p));
+    $$("[data-qy]").forEach((b) => b.onclick = () => { S.f.year = b.dataset.qy; S.f.book = b.dataset.qb; fillFilters(); render(); });
+  };
 
   function chart(g) {
     const { days, series } = Stats.cumulative(g, S.players);
@@ -146,14 +174,19 @@
         <div class="card"><b>${me.finW}-${me.finL}</b><span>finala (${pct(me.fin1v1)})</span></div>
       </div>
       <p>Trenutno: ${st.current ? (st.current.kind === "W" ? `🔥 niz od <b>${st.current.len}</b> pobeda` : `${st.current.len} partija bez pobede`) : "–"}</p>
-      <h3>Finala protiv</h3>
-      <table class="grid"><thead><tr><th>Protivnik</th><th>Dobio</th><th>Izgubio</th><th>%</th></tr></thead><tbody>
-      ${others.map((p) => { const w = m[id][p.id], l = m[p.id][id]; return `<tr><td class="nm">${dot(p.id)}${esc(p.name)}</td><td>${w}</td><td>${l}</td><td>${pct(w / (w + l))}</td></tr>`; }).join("")}
-      </tbody></table>
+      <h3>H2H (finala, vs 2, vs svi)</h3>
+      ${h2hTable(g, id)}
       <h3>Po godinama</h3>
       <table class="grid"><thead><tr><th>Godina</th><th>Efikasnost</th></tr></thead><tbody>
       ${byYear.rows.filter((r) => r.vals[pi] != null).map((r) => `<tr><td>${r.label}</td><td>${pct(r.vals[pi], 1)}</td></tr>`).join("")}
       </tbody></table>`);
+  }
+
+  function h2hTable(g, id) {
+    const h = Stats.playerH2H(g, S.players, id);
+    const row = (r, cls = "") => `<tr class="${cls}"><td class="nm">${r.id ? dot(r.id) : ""}${esc(r.label)}</td><td>${r.w}</td><td>${r.l}</td><td>${r.w + r.l}</td><td>${r.w + r.l ? pct(r.w / (r.w + r.l), 1) : "–"}</td></tr>`;
+    return `<table class="grid"><thead><tr><th>${esc(pname(id))} H2H</th><th>Dobio</th><th>Izgubio</th><th>Ukupno</th><th>% pobeda</th></tr></thead><tbody>
+      ${h.rows.map((r) => row(r)).join("")}${row(h.v2)}${row(h.vA)}${row(h.tot, "tot")}</tbody></table>`;
   }
 
   // ---------- H2H ----------
@@ -170,10 +203,27 @@
     };
     const P = S.pair.a && S.pair.b ? Stats.pair(g, S.pair.a, S.pair.b) : null;
     const opt = (sel) => act.map((p) => `<option value="${p.id}" ${p.id === sel ? "selected" : ""}>${esc(p.name)}</option>`).join("");
-    return `<h2>Finala 1 na 1</h2>
+    const ds = Stats.duelStreaks(g, act).sort((x, y) => y.cur - x.cur || y.max - x.max);
+    if (!S.h2hP || !act.find((p) => p.id === S.h2hP)) S.h2hP = act[0]?.id;
+    const pl = Stats.pairList(g, act);
+    return `<h2>🔥 Nizovi u finalima</h2>
+      <p class="muted small">Računa se samo kroz direktna finala ta dva igrača; partije u kojima nisu igrali finale ne prekidaju niz. ${filterLabel()}</p>
+      <div class="tw"><table class="grid"><thead><tr><th>Duel</th><th>Trenutno vodi</th><th>Niz</th><th>Od</th><th>Rekordni niz</th><th>Rekorder</th><th>Rekord (prvi / drugi)</th><th>Finala</th><th>Poslednje</th></tr></thead><tbody>
+      ${ds.map((x) => `<tr><td class="nm">${dot(x.a)}${esc(pname(x.a))} – ${dot(x.b)}${esc(pname(x.b))}</td>
+        <td class="nm"><b style="color:${color(x.leader)}">${esc(pname(x.leader))}</b></td><td><b>${x.cur >= 3 ? "🔥 " : ""}${x.cur}</b></td><td class="muted">${fmtDate(x.start)}</td>
+        <td>${x.max}</td><td class="nm">${x.holders.map((h) => esc(pname(h))).join(" / ")}</td><td>${x.recA} / ${x.recB}</td><td>${x.n}</td><td class="muted">${fmtDate(x.last)}</td></tr>`).join("")}
+      </tbody></table></div>
+      <h2>Finala 1 na 1</h2>
       <p class="muted small">Red = pobednik, kolona = poraženi u finalu. ${filterLabel()}</p>
       <div class="tw"><table class="grid h2h"><thead><tr><th></th>${act.map((p) => `<th>${dot(p.id)}${esc(p.name)}</th>`).join("")}<th>Σ</th></tr></thead>
       <tbody>${act.map((a) => `<tr><th class="nm">${dot(a.id)}${esc(a.name)}</th>${act.map((b) => cell(a.id, b.id)).join("")}<td><b>${act.reduce((s, b) => s + m[a.id][b.id], 0)}</b></td></tr>`).join("")}</tbody></table></div>
+      <h2>H2H po igraču</h2>
+      <div class="chips">${act.map((p) => `<button class="pchip ${S.h2hP === p.id ? "on" : ""}" style="--c:${color(p.id)}" data-hp="${p.id}">${esc(p.name)}</button>`).join("")}</div>
+      ${S.h2hP ? h2hTable(g, S.h2hP) : ""}
+      <h2>Rang lista duela</h2>
+      <details class="box"><summary>Svi parovi po % pobeda (${pl.length})</summary>
+      <table class="grid"><thead><tr><th>H2H</th><th>Dobio</th><th>Izgubio</th><th>Ukupno</th><th>%</th></tr></thead><tbody>
+      ${pl.map((r) => `<tr><td class="nm">${dot(r.a)}${esc(r.label)}</td><td>${r.w}</td><td>${r.l}</td><td>${r.n}</td><td>${pct(r.pct, 1)}</td></tr>`).join("")}</tbody></table></details>
       <h2>Duel</h2>
       <div class="row"><select id="pa">${opt(S.pair.a)}</select><span>vs</span><select id="pb">${opt(S.pair.b)}</select></div>
       ${P ? `<div class="duel">
@@ -189,28 +239,49 @@
       <h3>Poslednja finala</h3>
       <ul class="list">${P.lastFinals.map((x) => `<li>${fmtDate(x.date)} — ${dot(x.w)}<b>${esc(pname(x.w))}</b> pobedio</li>`).join("") || "<li class='muted'>Nema finala.</li>"}</ul>` : ""}`;
   }
-  bind.h2h = () => { $("#pa").onchange = (e) => { S.pair.a = e.target.value; render(); }; $("#pb").onchange = (e) => { S.pair.b = e.target.value; render(); }; };
+  bind.h2h = () => {
+    $$("[data-hp]").forEach((b) => b.onclick = () => { S.h2hP = b.dataset.hp; render(); }); $("#pa").onchange = (e) => { S.pair.a = e.target.value; render(); }; $("#pb").onchange = (e) => { S.pair.b = e.target.value; render(); }; };
 
   // ---------- Pregledi (pivoti) ----------
-  const PRESETS = [["year", "eff", "Po godinama"], ["book", "wins", "Po sveskama"], ["fl", "wins", "Prva / poslednja"], ["idx", "wins", "Redni broj partije"], ["np", "eff", "Broj igrača"], ["wd", "eff", "Dan u nedelji"], ["tip", "wins", "Način pobede"], ["month", "wins", "Po mesecima"]];
+  const PRESETS = [
+    { l: "⚡ Highlight", dim: "hl", metric: "wins" }, { l: "Pobede po godinama", dim: "year", metric: "wins" }, { l: "Efikasnost po godinama", dim: "year", metric: "eff" },
+    { l: "Pobede po sveskama", dim: "book", metric: "wins" }, { l: "Efikasnost po sveskama", dim: "book", metric: "eff" },
+    { l: "Prva partija po sveskama", dim: "book", metric: "winsShare", pos: "first" }, { l: "Poslednja partija po sveskama", dim: "book", metric: "winsShare", pos: "last" },
+    { l: "Večeri – kumulativno", dim: "night", metric: "cum" }, { l: "Večeri – efikasnost", dim: "night", metric: "eff" },
+    { l: "Po mesecima", dim: "month", metric: "wins" }, { l: "Efikasnost po mesecima", dim: "month", metric: "eff" },
+    { l: "Po danu u nedelji", dim: "wd", metric: "wins" }, { l: "Efikasnost po danu", dim: "wd", metric: "eff" },
+    { l: "Sveska × broj igrača", dim: "book", dim2: "np", metric: "wins" }, { l: "Sveska × broj partija", dim: "book", dim2: "cnt", metric: "wins" },
+    { l: "Redni broj partije", dim: "idx", metric: "eff" }, { l: "Način pobede", dim: "tip", metric: "wins" },
+  ];
+  const presetOn = (p) => ["dim", "metric", "dim2", "pos", "np"].every((k) => (p[k] || "") === (S.pivot[k] || ""));
   function vPivot() {
-    const g = G(), { dim, metric } = S.pivot, M = Stats.METRICS[metric];
-    const pv = Stats.pivot(g, S.players, dim, metric);
+    const { dim, metric, dim2 = "", pos = "", np = "" } = S.pivot, M = Stats.METRICS[metric];
+    const g = Stats.filter(G(), { pos, np });
+    const pv = Stats.pivot(g, S.players, dim, metric, dim2);
+    const nps = [...new Set(S.games.map((x) => x.np))].sort();
     const act = S.players.filter((p, i) => pv.total.vals[i] != null);
     const idx = act.map((p) => S.players.indexOf(p));
-    const fmt = (v) => v == null ? "<span class='muted'>–</span>" : M.pct ? pct(v, 1) : v;
-    const best = (r) => { const vs = idx.map((i) => r.vals[i] ?? -1); return Math.max(...vs); };
-    return `<div class="chips">${PRESETS.map(([d, m, l]) => `<button class="chip ${d === dim && m === metric ? "on" : ""}" data-d="${d}" data-m="${m}">${l}</button>`).join("")}</div>
-      <div class="row"><label>Redovi <select id="pDim">${Object.entries(Stats.DIMS).map(([k, v]) => `<option value="${k}" ${k === dim ? "selected" : ""}>${v.label}</option>`).join("")}</select></label>
-      <label>Vrednost <select id="pMet">${Object.entries(Stats.METRICS).map(([k, v]) => `<option value="${k}" ${k === metric ? "selected" : ""}>${v.label}</option>`).join("")}</select></label></div>
-      <p class="muted small">${filterLabel()}. Zeleno = najbolji u redu.</p>
-      <div class="tw"><table class="grid sticky pv"><thead><tr><th>${Stats.DIMS[dim].label}</th>${act.map((p) => `<th>${dot(p.id)}${esc(p.name)}</th>`).join("")}<th>Partija</th></tr></thead>
-      <tbody>${[...pv.rows, pv.total].map((r) => { const b = best(r); return `<tr class="${r.key === "Σ" ? "tot" : ""}"><th class="nm">${esc(r.label)}</th>${idx.map((i) => `<td class="${r.vals[i] != null && r.vals[i] === b && b > 0 ? "best" : ""}">${fmt(r.vals[i])}</td>`).join("")}<td class="muted">${r.total}</td></tr>`; }).join("")}</tbody></table></div>`;
+    const num = (v) => Array.isArray(v) ? v[0] : v;
+    const fmt = (v) => v == null ? "<span class='muted'>–</span>" : Array.isArray(v) ? `${v[0]} <small class="muted">${pct(v[1])}</small>` : M.pct ? pct(v, 1) : v;
+    const best = (r) => Math.max(...idx.map((i) => num(r.vals[i]) ?? -1));
+    const sel = (id, opts, cur) => `<select id="${id}">${opts.map(([v, l]) => `<option value="${v}" ${String(v) === String(cur) ? "selected" : ""}>${l}</option>`).join("")}</select>`;
+    const dims = Object.entries(Stats.DIMS).map(([k, v]) => [k, v.label]);
+    return `<div class="chips scroll">${PRESETS.map((p, i) => `<button class="chip ${presetOn(p) ? "on" : ""}" data-pi="${i}">${p.l}</button>`).join("")}</div>
+      <div class="row"><label>Redovi ${sel("pDim", dims, dim)}</label><label>Podgrupa ${sel("pDim2", [["", "—"], ...dims.filter(([k]) => k !== dim)], dim2)}</label>
+      <label>Vrednost ${sel("pMet", Object.entries(Stats.METRICS).map(([k, v]) => [k, v.label]), metric)}</label></div>
+      <div class="row"><label>Partije ${sel("pPos", [["", "Sve partije"], ["first", "Samo prva partija večeri"], ["last", "Samo poslednja partija večeri"]], pos)}</label>
+      <label>Broj igrača ${sel("pNp", [["", "Svi"], ...nps.map((n) => [n, n + " igrača"])], np)}</label></div>
+      <p class="muted small">${filterLabel()}${pos ? " · " + (pos === "first" ? "prve partije" : "poslednje partije") : ""}${np ? " · " + np + " igrača" : ""}. Zeleno = najbolji u redu.</p>
+      ${g.length ? `<div class="tw"><table class="grid sticky pv"><thead><tr><th>${Stats.DIMS[dim].label}${dim2 ? " / " + Stats.DIMS[dim2].label : ""}</th>${act.map((p) => `<th>${dot(p.id)}${esc(p.name)}</th>`).join("")}<th>Partija</th></tr></thead>
+      <tbody>${[...pv.rows, pv.total].map((r) => { const b = best(r); return `<tr class="${r.key === "Σ" ? "tot" : r.head ? "head" : r.sub ? "sub" : ""}"><th class="nm">${esc(r.label)}</th>${idx.map((i) => `<td class="${r.vals[i] != null && num(r.vals[i]) === b && b > 0 && !r.head ? "best" : ""}">${fmt(r.vals[i])}</td>`).join("")}<td class="muted">${r.total}</td></tr>`; }).join("")}</tbody></table></div>` : `<p class="empty">Nema partija za izabrani filter.</p>`}`;
   }
   bind.pivot = () => {
     const save = () => { store.set("mm_pivot", S.pivot); render(); };
-    $$(".chip[data-d]").forEach((b) => b.onclick = () => { S.pivot = { dim: b.dataset.d, metric: b.dataset.m }; save(); });
-    $("#pDim").onchange = (e) => { S.pivot.dim = e.target.value; save(); };
+    $$(".chip[data-pi]").forEach((b) => b.onclick = () => { const p = PRESETS[+b.dataset.pi]; S.pivot = { dim: p.dim, metric: p.metric, dim2: p.dim2 || "", pos: p.pos || "", np: p.np || "" }; save(); });
+    $("#pDim").onchange = (e) => { S.pivot.dim = e.target.value; if (S.pivot.dim2 === S.pivot.dim) S.pivot.dim2 = ""; save(); };
+    $("#pDim2").onchange = (e) => { S.pivot.dim2 = e.target.value; save(); };
+    $("#pPos").onchange = (e) => { S.pivot.pos = e.target.value; save(); };
+    $("#pNp").onchange = (e) => { S.pivot.np = e.target.value; save(); };
     $("#pMet").onchange = (e) => { S.pivot.metric = e.target.value; save(); };
   };
 

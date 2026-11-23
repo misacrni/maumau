@@ -43,6 +43,26 @@ def rows_from_xlsx(path):
         return out
     return sheet("unos", "Game day"), sheet("H2H", "Kontrolna suma")
 
+def rules_from_xlsx(path):
+    import openpyxl
+    wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
+    if "Pravila igre" not in wb.sheetnames:
+        return None
+    out, cur = {"title": "", "sub": "", "sections": []}, None
+    for r in wb["Pravila igre"].iter_rows(values_only=True):
+        cells = [str(v).strip() for v in r if v not in (None, "")]
+        if not cells:
+            continue
+        if not out["title"]:
+            out["title"] = cells[0]; continue
+        if not out["sub"] and len(cells) == 1 and not re.match(r"\d+\.", cells[0]):
+            out["sub"] = cells[0]; continue
+        if len(cells) == 1 and re.match(r"\d+\.\s", cells[0]):
+            cur = {"h": cells[0], "items": []}; out["sections"].append(cur); continue
+        if cur is not None:
+            cur["items"].append(cells[:2] if len(cells) > 1 else ["", cells[0]])
+    return out
+
 def rows_from_text(path, header_line_startswith):
     lines = open(path, encoding="utf-8").read().split("\n")
     i = next(k for k, l in enumerate(lines) if l.startswith(header_line_startswith))
@@ -185,9 +205,12 @@ if __name__ == "__main__":
         unos = rows_from_text(a[1], "Game day\t"); h2h = rows_from_text(a[2], "Kontrolna suma\t"); out = a[3]
     else:
         unos, h2h = rows_from_xlsx(a[0]); out = a[1]
+        RULES = rules_from_xlsx(a[0])
     data, problems = build(unos, h2h)
     problems += check(data, unos)
     data = apply_fixes(data)
+    if "RULES" in globals() and RULES:
+        data["rules"] = RULES
     json.dump(data, open(out, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     print(f"Kola: {len(data['days'])}, partije: {len(data['games'])}")
     for p in problems[:50]:

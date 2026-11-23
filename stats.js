@@ -29,19 +29,21 @@ const Stats = (() => {
 
   function filter(games, f) {
     return games.filter((g) => (!f.year || g.year === +f.year) && (!f.book || g.book === f.book) &&
-      (!f.from || g.date >= f.from) && (!f.to || g.date <= f.to));
+      (!f.from || g.date >= f.from) && (!f.to || g.date <= f.to) &&
+      (!f.np || g.np === +f.np) && (!f.pos || (f.pos === "first" ? g.first : g.last)));
   }
 
   function table(games, players) {
     const S = {};
-    players.forEach((p) => S[p.id] = { id: p.id, name: p.name, days: new Set(), played: 0, wins: 0, finals: 0, finW: 0, finL: 0, w2: 0, wA: 0, firstW: 0, lastW: 0, nightBest: 0, clutch: 0, m101: 0, hio: 0 });
+    players.forEach((p) => S[p.id] = { id: p.id, name: p.name, days: new Set(), played: 0, wins: 0, finals: 0, finW: 0, finL: 0, w2: 0, wA: 0, firstW: 0, lastW: 0, nightBest: 0, clutch: 0, m101: 0, hio: 0, l2: 0, lA: 0 });
     const nights = new Map();
     for (const g of games) {
       for (const id of g.p) { if (!S[id]) continue; S[id].played++; S[id].days.add(g.day); }
       const w = S[g.w]; if (!w) continue;
       w.wins++;
       if (g.t === "F") { w.finals++; w.finW++; const l = S[g.l[0]]; if (l) { l.finals++; l.finL++; } }
-      else if (g.t === "2") w.w2++; else if (g.t === "A") w.wA++;
+      else if (g.t === "2") { w.w2++; g.l.forEach((x) => S[x] && S[x].l2++); }
+      else if (g.t === "A") { w.wA++; g.l.forEach((x) => S[x] && S[x].lA++); }
       const hk = hlKind(g.h); if (hk) w[hk]++;
       if (g.first) w.firstW++;
       if (g.last) w.lastW++;
@@ -57,7 +59,10 @@ const Stats = (() => {
       eff: s.played ? s.wins / s.played : 0,
       finRate: s.played ? s.finals / s.played : 0,
       fin1v1: s.finals ? s.finW / s.finals : 0,
-    })).filter((s) => s.played > 0).sort((a, b) => b.eff - a.eff);
+      wEnd: s.w2 + s.wA, WT: s.finW + s.w2 + s.wA, LT: s.finL + s.l2 + s.lA,
+      pctWT: (s.finW + s.w2 + s.wA + s.finL + s.l2 + s.lA) ? (s.finW + s.w2 + s.wA) / (s.finW + s.w2 + s.wA + s.finL + s.l2 + s.lA) : 0,
+      share: games.length ? s.wins / games.length : 0,
+    })).filter((s) => s.played > 0).sort((a, b) => b.eff - a.eff).map((s, i, arr) => s);
   }
 
   // Matrica finala: m[a][b] = koliko puta je a pobedio b u finalu 1 na 1
@@ -85,35 +90,88 @@ const Stats = (() => {
     month: { label: "Mesec", key: (g) => g.month, fmt: (k) => MESECI[k - 1] },
     wd: { label: "Dan u nedelji", key: (g) => g.wd, fmt: (k) => DANI[k] },
     idx: { label: "Redni broj partije u večeri", key: (g) => g.idx, fmt: (k) => k + ". partija" },
+    cnt: { label: "Broj partija u večeri", key: (g) => g.cnt, fmt: (k) => k + (k === 1 ? " partija" : k < 5 ? " partije" : " partija") },
+    night: { label: "Večer (datum)", key: (g) => g.date, fmt: (k) => { const [y, m, d] = k.split("-"); return `${+d}.${+m}.${y}.`; } },
     np: { label: "Broj igrača", key: (g) => g.np, fmt: (k) => k + " igrača" },
     fl: { label: "Prva / poslednja partija", key: (g) => g.cnt === 1 ? 0 : g.first ? 1 : g.last ? 3 : 2, fmt: (k) => ["Jedina u večeri", "Prva", "Između", "Poslednja"][k] },
     hl: { label: "Istaknute (clutch poeni)", key: (g) => hlKind(g.h) ? (g.h === "HIO" ? 999 : g.h) : -999, fmt: (k) => k === -999 ? "Obične partije" : k === 999 ? "⛳ Hole in one" : k === -101 ? "💥 −101" : "⚡ " + k + " poena" },
     tip: { label: "Način pobede", key: (g) => g.t, fmt: (k) => TIP[k] || k },
   };
   const METRICS = {
-    wins: { label: "Pobede", pct: false }, eff: { label: "Efikasnost %", pct: true }, share: { label: "Udeo u pobedama %", pct: true },
+    wins: { label: "Pobede", pct: false }, winsShare: { label: "Pobede + % od ukupno", pct: false, combo: true },
+    cum: { label: "Kumulativne pobede", pct: false }, eff: { label: "Efikasnost %", pct: true }, share: { label: "Udeo u pobedama %", pct: true },
     played: { label: "Odigrane partije", pct: false }, finals: { label: "Učešće u finalu", pct: false }, finW: { label: "Dobijena finala", pct: false },
     fin1v1: { label: "% dobijenih finala", pct: true },
   };
 
-  function pivot(games, players, dim, metric) {
-    const D = DIMS[dim]; const groups = new Map();
-    games.forEach((g) => { const k = D.key(g); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(g); });
-    const keys = [...groups.keys()].sort((a, b) => (a > b ? 1 : a < b ? -1 : 0));
-    const val = (t, total) => {
-      if (!t) return null;
+  // Pivot: redovi po dim (i opciono podgrupa dim2), vrednost po igraču
+  function pivot(games, players, dim, metric, dim2) {
+    const group = (gs, D) => { const m = new Map(); gs.forEach((g) => { const k = D.key(g); if (!m.has(k)) m.set(k, []); m.get(k).push(g); }); return [...m.entries()].sort((a, b) => (a[0] > b[0] ? 1 : a[0] < b[0] ? -1 : 0)); };
+    const run = Object.fromEntries(players.map((p) => [p.id, 0]));
+    const val = (t, gs, id) => {
+      if (!t) return metric === "cum" ? (run[id] || null) : null;
       switch (metric) {
-        case "share": return total ? t.wins / total : 0;
+        case "share": return gs.length ? t.wins / gs.length : 0;
+        case "winsShare": return [t.wins, gs.length ? t.wins / gs.length : 0];
+        case "cum": run[id] += t.wins; return run[id];
         default: return t[metric];
       }
     };
-    const rows = keys.map((k) => {
-      const gs = groups.get(k); const t = Object.fromEntries(table(gs, players).map((s) => [s.id, s]));
-      return { key: k, label: D.fmt ? D.fmt(k) : String(k), total: gs.length, vals: players.map((p) => val(t[p.id], gs.length)) };
-    });
+    const mk = (k, gs, D, sub) => {
+      const t = Object.fromEntries(table(gs, players).map((s) => [s.id, s]));
+      return { key: k, sub, label: D.fmt ? D.fmt(k) : String(k), total: gs.length, vals: players.map((p) => val(t[p.id], gs, p.id)) };
+    };
+    const rows = [];
+    for (const [k, gs] of group(games, DIMS[dim])) {
+      if (dim2 && DIMS[dim2]) {
+        const head = metric === "cum" ? null : mk(k, gs, DIMS[dim], false);
+        if (head) { head.head = true; rows.push(head); }
+        for (const [k2, gs2] of group(gs, DIMS[dim2])) rows.push(mk(k2, gs2, DIMS[dim2], true));
+      } else rows.push(mk(k, gs, DIMS[dim], false));
+    }
     const tAll = Object.fromEntries(table(games, players).map((s) => [s.id, s]));
-    const total = { key: "Σ", label: "Ukupno", total: games.length, vals: players.map((p) => val(tAll[p.id], games.length)) };
+    const total = { key: "Σ", label: "Ukupno", total: games.length, vals: players.map((p) => metric === "cum" ? (tAll[p.id]?.wins ?? null) : val(tAll[p.id], games, p.id)) };
     return { rows, total };
+  }
+
+  // H2H jednog igrača: finala protiv svakog + VS 2 + VS ALL (kao list Pregledi)
+  function playerH2H(games, players, id) {
+    const rows = players.filter((p) => p.id !== id).map((p) => {
+      const w = games.filter((g) => g.t === "F" && g.w === id && g.l[0] === p.id).length;
+      const l = games.filter((g) => g.t === "F" && g.w === p.id && g.l[0] === id).length;
+      return { id: p.id, label: p.name, w, l };
+    }).filter((r) => r.w + r.l > 0);
+    const v2 = { label: "VS 2", w: games.filter((g) => g.t === "2" && g.w === id).length, l: games.filter((g) => g.t === "2" && g.l.includes(id)).length };
+    const vA = { label: "VS ALL", w: games.filter((g) => g.t === "A" && g.w === id).length, l: games.filter((g) => g.t === "A" && g.l.includes(id)).length };
+    const all = [...rows, v2, vA];
+    const tot = { label: "Ukupno", w: all.reduce((s, r) => s + r.w, 0), l: all.reduce((s, r) => s + r.l, 0) };
+    return { rows, v2, vA, tot };
+  }
+
+  // Rang lista svih duela (A vs B), sortirano po % pobeda
+  function pairList(games, players) {
+    const out = [];
+    players.forEach((a) => {
+      const h = playerH2H(games, players, a.id);
+      h.rows.forEach((r) => out.push({ a: a.id, b: r.id, label: `${a.name} vs ${r.label}`, w: r.w, l: r.l }));
+      [h.v2, h.vA].forEach((r) => r.w + r.l > 0 && out.push({ a: a.id, b: null, label: `${a.name} ${r.label}`, w: r.w, l: r.l }));
+    });
+    return out.map((r) => ({ ...r, n: r.w + r.l, pct: r.w / (r.w + r.l) })).sort((x, y) => y.pct - x.pct || y.n - x.n);
+  }
+
+  // Nizovi u direktnim duelima (finala 1 na 1)
+  function duelStreaks(games, players) {
+    const out = [];
+    for (let i = 0; i < players.length; i++) for (let j = i + 1; j < players.length; j++) {
+      const a = players[i].id, b = players[j].id;
+      const fin = games.filter((g) => g.t === "F" && ((g.w === a && g.l[0] === b) || (g.w === b && g.l[0] === a)));
+      if (!fin.length) continue;
+      const best = { [a]: 0, [b]: 0 }; let cur = null, len = 0, start = null;
+      fin.forEach((g) => { if (g.w === cur) len++; else { cur = g.w; len = 1; start = g.date; } best[cur] = Math.max(best[cur], len); });
+      const max = Math.max(best[a], best[b]);
+      out.push({ a, b, recA: best[a], recB: best[b], max, holders: [a, b].filter((x) => best[x] === max), leader: cur, cur: len, start, last: fin[fin.length - 1].date, n: fin.length });
+    }
+    return out;
   }
 
   function streaks(games, id) {
@@ -141,5 +199,5 @@ const Stats = (() => {
   }
 
   function highlights(games) { return games.filter((g) => hlKind(g.h)).reverse(); }
-  return { hlKind, HL, hlText, highlights, enrich, filter, table, h2hMatrix, pair, pivot, streaks, cumulative, DIMS, METRICS, TIP, DANI };
+  return { playerH2H, pairList, duelStreaks, hlKind, HL, hlText, highlights, enrich, filter, table, h2hMatrix, pair, pivot, streaks, cumulative, DIMS, METRICS, TIP, DANI };
 })();
