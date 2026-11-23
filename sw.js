@@ -1,5 +1,5 @@
 // Keš za rad bez interneta: aplikacija iz keša, podaci uvek sa mreže (ako ima mreže).
-const C = "mm-v1";
+const C = "mm-v2";
 const SHELL = ["./", "index.html", "style.css", "app.js", "stats.js", "crypto.js", "icon.svg", "manifest.webmanifest"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(C).then((c) => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener("activate", (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== C).map((k) => caches.delete(k))))); self.clients.claim(); });

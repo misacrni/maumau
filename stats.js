@@ -3,6 +3,10 @@ const Stats = (() => {
   const DANI = ["ponedeljak", "utorak", "sreda", "četvrtak", "petak", "subota", "nedelja"];
   const MESECI = ["jan", "feb", "mar", "apr", "maj", "jun", "jul", "avg", "sep", "okt", "nov", "dec"];
   const TIP = { F: "Finale 1 na 1", 2: "Pobeda protiv 2", A: "Pobeda protiv svih" };
+  // Istaknute partije: clutch = pobeda posle 190–200 poena u toku partije; -101 = prekid i pobeda; HIO = Hole in one
+  const hlKind = (h) => h === "HIO" ? "hio" : h === -101 ? "m101" : (typeof h === "number" && h >= 190 && h <= 200) ? "clutch" : null;
+  const HL = { clutch: { icon: "⚡", label: "Clutch" }, m101: { icon: "💥", label: "−101" }, hio: { icon: "⛳", label: "Hole in one" } };
+  const hlText = (h) => { const k = hlKind(h); return !k ? "" : k === "clutch" ? `${HL.clutch.icon} Clutch (${h})` : `${HL[k].icon} ${HL[k].label}`; };
 
   // Obogati partije podacima o kolu (datum, sveska, redni broj u večeri...)
   function enrich(data) {
@@ -30,7 +34,7 @@ const Stats = (() => {
 
   function table(games, players) {
     const S = {};
-    players.forEach((p) => S[p.id] = { id: p.id, name: p.name, days: new Set(), played: 0, wins: 0, finals: 0, finW: 0, finL: 0, w2: 0, wA: 0, firstW: 0, lastW: 0, nightBest: 0 });
+    players.forEach((p) => S[p.id] = { id: p.id, name: p.name, days: new Set(), played: 0, wins: 0, finals: 0, finW: 0, finL: 0, w2: 0, wA: 0, firstW: 0, lastW: 0, nightBest: 0, clutch: 0, m101: 0, hio: 0 });
     const nights = new Map();
     for (const g of games) {
       for (const id of g.p) { if (!S[id]) continue; S[id].played++; S[id].days.add(g.day); }
@@ -38,6 +42,7 @@ const Stats = (() => {
       w.wins++;
       if (g.t === "F") { w.finals++; w.finW++; const l = S[g.l[0]]; if (l) { l.finals++; l.finL++; } }
       else if (g.t === "2") w.w2++; else if (g.t === "A") w.wA++;
+      const hk = hlKind(g.h); if (hk) w[hk]++;
       if (g.first) w.firstW++;
       if (g.last) w.lastW++;
       if (!nights.has(g.day)) nights.set(g.day, {});
@@ -82,7 +87,7 @@ const Stats = (() => {
     idx: { label: "Redni broj partije u večeri", key: (g) => g.idx, fmt: (k) => k + ". partija" },
     np: { label: "Broj igrača", key: (g) => g.np, fmt: (k) => k + " igrača" },
     fl: { label: "Prva / poslednja partija", key: (g) => g.cnt === 1 ? 0 : g.first ? 1 : g.last ? 3 : 2, fmt: (k) => ["Jedina u večeri", "Prva", "Između", "Poslednja"][k] },
-    hl: { label: "Highlight W", key: (g) => g.h ?? "", fmt: (k) => k === "" ? "bez oznake" : String(k) },
+    hl: { label: "Istaknute (clutch poeni)", key: (g) => hlKind(g.h) ? (g.h === "HIO" ? 999 : g.h) : -999, fmt: (k) => k === -999 ? "Obične partije" : k === 999 ? "⛳ Hole in one" : k === -101 ? "💥 −101" : "⚡ " + k + " poena" },
     tip: { label: "Način pobede", key: (g) => g.t, fmt: (k) => TIP[k] || k },
   };
   const METRICS = {
@@ -135,5 +140,6 @@ const Stats = (() => {
     return { days, series };
   }
 
-  return { enrich, filter, table, h2hMatrix, pair, pivot, streaks, cumulative, DIMS, METRICS, TIP, DANI };
+  function highlights(games) { return games.filter((g) => hlKind(g.h)).reverse(); }
+  return { hlKind, HL, hlText, highlights, enrich, filter, table, h2hMatrix, pair, pivot, streaks, cumulative, DIMS, METRICS, TIP, DANI };
 })();

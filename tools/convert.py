@@ -146,6 +146,7 @@ def check(data, unos):
 # Ispravke potvrđene sa adminom (23.11.2026)
 DATE_FIX = {92: "2019-03-20"}   # kolo 92: greška u mesecu
 MERGE_DAYS = [(318, 319)]       # isto veče uneto kao dva kola (igrači menjani u toku večeri)
+BOOK_FIX = {"1 Yelow": "1 Yellow"}
 
 def apply_fixes(data):
     days = {d["n"]: d for d in data["days"]}
@@ -166,6 +167,16 @@ def apply_fixes(data):
         a["p"] = union
         data["days"] = [d for d in data["days"] if d["n"] != drop]
     data["days"].sort(key=lambda d: (d["date"], d["n"]))
+    # Kola i redni broj večeri u svesci se računaju redom (ispravlja duple/preskočene brojeve)
+    remap, per_book = {}, {}
+    for i, d in enumerate(data["days"], 1):
+        d["book"] = BOOK_FIX.get(d["book"], d["book"])
+        remap[d["n"]] = i; d["n"] = i
+        per_book[d["book"]] = per_book.get(d["book"], 0) + 1
+        d["bookDay"] = per_book[d["book"]]
+    for g in data["games"]:
+        g["day"] = remap[g["day"]]
+    data["games"].sort(key=lambda g: (g["day"], g["id"]))
     return data
 
 if __name__ == "__main__":

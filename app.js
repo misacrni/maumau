@@ -104,11 +104,11 @@
     <p class="muted small">${filterLabel()} · ${fmtDate(first.date)} – ${fmtDate(last.date)}</p>
     <h2>Tabela</h2>
     <div class="tw"><table class="grid sticky">
-      <thead><tr><th>#</th><th>Igrač</th><th title="Odigrane partije">Odigr.</th><th>Pob.</th><th>Efik.</th><th title="Učešće u finalu 1 na 1">Finala</th><th title="% partija u kojima je bio u finalu">U fin.%</th><th title="Dobijena – izgubljena finala">F W-L</th><th title="% dobijenih finala 1 na 1">% 1:1</th><th title="Pobeda protiv 2 igrača">vs 2</th><th title="Pobeda protiv svih">vs svi</th><th title="Pobede u prvoj partiji večeri">Prva</th><th title="Pobede u poslednjoj partiji večeri">Posl.</th><th title="Večeri u kojima je imao najviše pobeda (ili delio prvo mesto)">👑 Večeri</th><th>Večeri</th></tr></thead>
+      <thead><tr><th>#</th><th>Igrač</th><th title="Odigrane partije">Odigr.</th><th>Pob.</th><th>Efik.</th><th title="Učešće u finalu 1 na 1">Finala</th><th title="% partija u kojima je bio u finalu">U fin.%</th><th title="Dobijena – izgubljena finala">F W-L</th><th title="% dobijenih finala 1 na 1">% 1:1</th><th title="Pobeda protiv 2 igrača">vs 2</th><th title="Pobeda protiv svih">vs svi</th><th title="Pobede u prvoj partiji večeri">Prva</th><th title="Pobede u poslednjoj partiji večeri">Posl.</th><th title="Pobede posle 190–200 poena u toku partije">⚡ Clutch</th><th title="Pobeda prekidom na −101 / Hole in one">💥/⛳</th><th title="Večeri u kojima je imao najviše pobeda (ili delio prvo mesto)">👑 Večeri</th><th>Večeri</th></tr></thead>
       <tbody>${t.map((s, i) => `<tr data-p="${s.id}" class="click">
         <td>${i + 1}</td><td class="nm">${dot(s.id)}${esc(s.name)}</td><td>${s.played}</td><td><b>${s.wins}</b></td>
         <td><span class="bar" style="--w:${s.eff * 100 / Math.max(...t.map((x) => x.eff))}%;--c:${color(s.id)}">${pct(s.eff, 1)}</span></td>
-        <td>${s.finals}</td><td>${pct(s.finRate)}</td><td>${s.finW}-${s.finL}</td><td>${pct(s.fin1v1)}</td><td>${s.w2}</td><td>${s.wA}</td><td>${s.firstW}</td><td>${s.lastW}</td><td>${s.nightBest}</td><td>${s.days}</td></tr>`).join("")}</tbody>
+        <td>${s.finals}</td><td>${pct(s.finRate)}</td><td>${s.finW}-${s.finL}</td><td>${pct(s.fin1v1)}</td><td>${s.w2}</td><td>${s.wA}</td><td>${s.firstW}</td><td>${s.lastW}</td><td><b>${s.clutch}</b></td><td>${s.m101}/${s.hio}</td><td>${s.nightBest}</td><td>${s.days}</td></tr>`).join("")}</tbody>
     </table></div>
     <p class="muted small">Efikasnost = pobede / odigrane partije. Dodirni igrača za profil.</p>
     <h2>Pobede kroz vreme</h2>
@@ -222,7 +222,14 @@
     const recW = all.flatMap(({ p, s }) => s.win.map((x) => ({ ...x, id: p.id }))).sort((a, b) => b.len - a.len).slice(0, 5);
     const recD = all.flatMap(({ p, s }) => s.dry.map((x) => ({ ...x, id: p.id }))).sort((a, b) => b.len - a.len).slice(0, 5);
     const li = (x) => `<li>${dot(x.id)}<b>${esc(pname(x.id))}</b> — ${x.len} <span class="muted small">(${fmtDate(x.from)} – ${fmtDate(x.to)})</span></li>`;
-    return `<h2>Trenutno</h2>
+    const hl = Stats.highlights(g), t = Stats.table(g, S.players).sort((a, b) => b.clutch - a.clutch);
+    return `<h2>⭐ Istaknute partije</h2>
+      <p class="muted small">⚡ Clutch: pobeda posle 190–200 poena u toku partije (201 = ispadanje) · 💥 −101: partija prekinuta, pobednik · ⛳ Hole in one: pobedio jedno deljenje i to mu je donelo pobedu.</p>
+      <div class="tw"><table class="grid"><thead><tr><th>Igrač</th><th>⚡ Clutch</th><th>💥 −101</th><th>⛳ HIO</th><th>% clutch u pobedama</th></tr></thead><tbody>
+      ${t.map((s) => `<tr><td class="nm">${dot(s.id)}${esc(s.name)}</td><td><b>${s.clutch}</b></td><td>${s.m101}</td><td>${s.hio}</td><td>${pct(s.wins ? s.clutch / s.wins : 0)}</td></tr>`).join("")}
+      </tbody></table></div>
+      <details class="box"><summary>Sve istaknute partije (${hl.length})</summary><ol class="list">${hl.map((x) => `<li>${fmtDate(x.date)} — ${dot(x.w)}<b>${esc(pname(x.w))}</b> <span class="hl">${Stats.hlText(x.h)}</span></li>`).join("")}</ol></details>
+      <h2>Trenutno</h2>
       <div class="cards">${all.map(({ p, s }) => `<div class="card"><b>${dot(p.id)}${esc(p.name)}</b><span>${s.current ? (s.current.kind === "W" ? `🔥 ${s.current.len} pob. zaredom` : `${s.current.len} bez pobede`) : "–"}</span></div>`).join("")}</div>
       <div class="two"><div><h2>🔥 Najduži nizovi pobeda</h2><ol class="list">${recW.map(li).join("")}</ol></div>
       <div><h2>🥶 Najduže bez pobede</h2><ol class="list">${recD.map(li).join("")}</ol></div></div>
@@ -246,9 +253,10 @@
       <p class="muted small">${days.length} večeri${days.length > 60 ? " (prikazano 60)" : ""}</p>
       ${shown.map(([n, gs]) => {
         const cnt = {}; gs.forEach((x) => cnt[x.w] = (cnt[x.w] || 0) + 1);
-        return `<details class="night"><summary><span><b>${fmtDate(gs[0].date)}</b> <span class="muted small">${Stats.DANI[gs[0].wd]} · ${esc(gs[0].book)} · kolo ${n}</span></span>
+        const nh = gs.filter((x) => Stats.hlKind(x.h)).length;
+        return `<details class="night"><summary><span><b>${fmtDate(gs[0].date)}</b>${nh ? ` <span class="hl">${gs.filter((x) => Stats.hlKind(x.h)).map((x) => Stats.HL[Stats.hlKind(x.h)].icon).join("")}</span>` : ""} <span class="muted small">${Stats.DANI[gs[0].wd]} · ${esc(gs[0].book)} · kolo ${n}</span></span>
         <span class="score">${gs[0].p.map((id) => `<span class="pill" style="--c:${color(id)}">${esc(pname(id))} ${cnt[id] || 0}</span>`).join("")}</span></summary>
-        <ol class="list">${gs.map((x) => `<li>${dot(x.w)}<b>${esc(pname(x.w))}</b> ${desc(x)}</li>`).join("")}</ol></details>`;
+        <ol class="list">${gs.map((x) => `<li>${dot(x.w)}<b>${esc(pname(x.w))}</b> ${desc(x)}${x.h != null && Stats.hlKind(x.h) ? ` <span class="hl">${Stats.hlText(x.h)}</span>` : ""}</li>`).join("")}</ol></details>`;
       }).join("")}`;
   }
   bind.istorija = () => {
@@ -292,9 +300,15 @@
         ${others.length >= 3 ? `<button class="chip ${E.t === "A" ? "on" : ""}" data-t="A">Protiv svih (${others.length})</button>` : ""}
       </div>
       ${E.t !== "A" ? `<p class="small muted">${E.t === "F" ? "Protivnik u finalu:" : "Izaberi 2 protivnika:"}</p><div class="chips">${others.map((id) => chip(id, E.l.includes(id), "data-l")).join("")}</div>` : ""}` : ""}
+      ${E.w ? `<p class="small muted">Istaknuta partija?</p><div class="chips">
+        <button class="chip ${E.h == null ? "on" : ""}" data-h="">Ne</button>
+        <button class="chip ${typeof E.h === "number" && E.h >= 190 ? "on" : ""}" data-h="clutch">⚡ Clutch</button>
+        <button class="chip ${E.h === -101 ? "on" : ""}" data-h="-101">💥 −101</button>
+        <button class="chip ${E.h === "HIO" ? "on" : ""}" data-h="HIO">⛳ Hole in one</button></div>
+        ${typeof E.h === "number" && E.h >= 190 ? `<label class="small muted">Najviše poena u toku partije (190–200) <input id="eClutch" type="number" min="190" max="200" value="${E.h}" inputmode="numeric"></label>` : ""}` : ""}
       <button id="addGame" class="primary" ${canAdd() ? "" : "disabled"}>+ Dodaj partiju</button>
     </div>
-    ${dayGames.length ? `<h3>Partije ${fmtDate(E.date)}</h3><ol class="list">${dayGames.map((x) => `<li>${dot(x.w)}<b>${esc(pname(x.w))}</b> ${desc(x)} <button class="ghost small" data-del="${x.id}">✕</button></li>`).join("")}</ol>` : ""}
+    ${dayGames.length ? `<h3>Partije ${fmtDate(E.date)}</h3><ol class="list">${dayGames.map((x) => `<li>${dot(x.w)}<b>${esc(pname(x.w))}</b> ${desc(x)} ${x.h != null ? Stats.hlText(x.h) : ""} <button class="ghost small" data-del="${x.id}">✕</button></li>`).join("")}</ol>` : ""}
     <div class="row sticky-save"><button id="saveGh" class="primary" ${S.dirty || store.get("mm_draft") ? "" : "disabled"}>☁️ Sačuvaj i objavi</button><button id="discard" class="ghost">Odbaci izmene</button></div>
     <details class="box"><summary>⚙️ Podešavanja (GitHub, lozinka, izvoz)</summary>
       <div class="form">
@@ -328,7 +342,9 @@
       if (day) saveDraft(); E.w = null; E.l = []; render();
     });
     $$("[data-gp]").forEach((b) => b.onclick = () => { const i = E.gp.indexOf(b.dataset.gp); i >= 0 ? E.gp.splice(i, 1) : E.gp.push(b.dataset.gp); E.w = null; E.l = []; render(); });
-    $$("[data-w]").forEach((b) => b.onclick = () => { E.w = b.dataset.w; E.l = []; render(); });
+    $$("[data-w]").forEach((b) => b.onclick = () => { E.w = b.dataset.w; E.l = []; E.h = null; render(); });
+    $$("[data-h]").forEach((b) => b.onclick = () => { const v = b.dataset.h; E.h = v === "" ? null : v === "clutch" ? 195 : v === "-101" ? -101 : "HIO"; render(); });
+    const ec = $("#eClutch"); if (ec) ec.onchange = () => { const v = Math.round(+ec.value); E.h = v >= 190 && v <= 200 ? v : 195; render(); };
     $$("[data-t]").forEach((b) => b.onclick = () => { E.t = b.dataset.t; E.l = []; render(); });
     $$("[data-l]").forEach((b) => b.onclick = () => {
       const id = b.dataset.l; if (E.t === "F") E.l = [id]; else { const i = E.l.indexOf(id); i >= 0 ? E.l.splice(i, 1) : E.l.length < 2 && E.l.push(id); }
@@ -347,8 +363,9 @@
       const l = E.t === "A" ? gp.filter((x) => x !== E.w) : [...E.l];
       const g = { id: Math.max(0, ...D.games.map((g) => g.id)) + 1, day: day.n, w: E.w, l, t: E.t };
       if (gp.length !== day.p.length) g.p = gp;
+      if (E.h != null) g.h = E.h;
       D.games.push(g);
-      E.w = null; E.l = []; E.t = "F"; E.gp = null; saveDraft(); toast("Partija dodata"); render();
+      E.w = null; E.l = []; E.t = "F"; E.gp = null; E.h = null; saveDraft(); toast("Partija dodata"); render();
     };
     $$("[data-del]").forEach((b) => b.onclick = () => { if (!confirm("Obriši ovu partiju?")) return; D.games = D.games.filter((g) => g.id !== +b.dataset.del); saveDraft(); render(); });
     $("#discard").onclick = () => { if (!confirm("Odbaciti sve nesačuvane izmene?")) return; store.del("mm_draft"); S.draft = null; S.dirty = false; S.edit = null; S.players = S.data.players; render(); };
@@ -364,7 +381,7 @@
     $("#exportJson").onclick = () => download("maumau.json", JSON.stringify(D, null, 1), "application/json");
     $("#exportCsv").onclick = () => {
       const dm = new Map(D.days.map((d) => [d.n, d]));
-      const rows = [["id", "kolo", "datum", "sveska", "igraci", "pobednik", "tip", "porazeni"]].concat(D.games.map((g) => { const d = dm.get(g.day); return [g.id, g.day, d.date, d.book, d.p.map(pname).join("|"), pname(g.w), Stats.TIP[g.t], g.l.map(pname).join("|")]; }));
+      const rows = [["id", "kolo", "datum", "sveska", "igraci", "pobednik", "tip", "porazeni", "istaknuto"]].concat(D.games.map((g) => { const d = dm.get(g.day); return [g.id, g.day, d.date, d.book, d.p.map(pname).join("|"), pname(g.w), Stats.TIP[g.t], g.l.map(pname).join("|"), g.h ?? ""]; }));
       download("maumau.csv", "﻿" + rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(";")).join("\n"), "text/csv");
     };
   };

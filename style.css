@@ -107,3 +107,4 @@ html, body { overflow-x: hidden; }
 @media (min-width: 700px) { .modal { align-items: center; } .modal .sheet { border-radius: 20px; } }
 .modal .close { position: sticky; top: 6px; float: right; background: var(--card); color: var(--fg); border: 1px solid var(--line); border-radius: 50%; width: 34px; height: 34px; padding: 0; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--nav) + 20px); background: #111c; color: #fff; padding: 10px 16px; border-radius: 12px; z-index: 30; font-size: 14px; max-width: 90vw; }
+.hl { font-size: 12px; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, #f59e0b 20%, transparent); white-space: nowrap; }
