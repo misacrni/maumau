@@ -71,6 +71,7 @@
     setTimeout(() => { const b = $("#enableAdmin"); if (b) b.onclick = () => { showAdmin(); $("#modal").classList.add("hidden"); S.view = "admin"; $$("#nav button").forEach((x) => x.classList.toggle("on", x.dataset.v === "admin")); render(); }; }, 0);
     modal(`<h2>ℹ️ O aplikaciji</h2>
       <div class="box"><b>✏️ Unos rezultata (admin)</b><p class="small muted">${store.get("mm_admin")?.token ? "✅ Ovaj uređaj je prijavljen kao admin (GitHub token je sačuvan)." : "Uključuje tab Unos na ovom uređaju. Za objavu je potreban GitHub token koji ima samo admin, pa igrači ne mogu ništa da promene."}</p><button id="enableAdmin">${store.get("mm_admin_on") ? "Otvori Unos" : "Uključi tab Unos"}</button></div>
+      ${S.data.settings?.ntfy ? `<div class="box"><b>🔔 Obaveštenja o novim rezultatima</b><p class="small">1. Instaliraj besplatnu aplikaciju <b>ntfy</b> (App Store / Google Play).<br>2. U njoj tapni <b>+</b> i upiši temu: <code>${esc(S.data.settings.ntfy)}</code><br>3. Gotovo — posle svake bleje stiže notifikacija sa rezultatima.</p></div>` : ""}
       <div class="box"><b>🚪 Odjava</b><p class="small muted">Briše sa ovog uređaja zapamćenu lozinku ekipe i, ako postoji, admin token i nesačuvan unos.</p><button id="logoutBtn" class="ghost">Odjavi se</button></div>
       <p>Statistika naše Mau Mau bleje od 2017. Svi podaci su iz sveski i Excela, a od sada se unose ovde. Gore biraš godinu ili svesku, i svi prikazi se računaju samo za to.</p>
       <ul class="list">
@@ -235,7 +236,12 @@
     const m = Stats.h2hMatrix(g, S.players), st = Stats.streaks(g, id);
     const byYear = Stats.pivot(g, S.players, "year", "eff"), pi = S.players.findIndex((p) => p.id === id);
     const others = S.players.filter((p) => p.id !== id && (m[id][p.id] + m[p.id][id]) > 0);
-    modal(`<h2>${dot(id)}${esc(me.name)}</h2><p class="muted small">${filterLabel()}</p>
+    const P = S.players.find((p) => p.id === id) || {};
+    const tel = (P.phone || "").replace(/[^+\d]/g, "");
+    modal(`<div class="phead">${P.photo ? `<img class="avatar big" src="${P.photo}" alt="">` : `<div class="avatar big ph" style="--c:${color(id)}">${esc((me.name || "?")[0])}</div>`}
+        <div><h2>${esc(me.name)}</h2>${P.desc ? `<p class="small">${esc(P.desc)}</p>` : ""}
+        <p class="small">${tel ? `<a href="tel:${tel}">📞 ${esc(P.phone)}</a> · <a href="https://wa.me/${tel.replace("+", "")}">WhatsApp</a>` : ""}${tel && P.email ? " · " : ""}${P.email ? `<a href="mailto:${esc(P.email)}">✉️ ${esc(P.email)}</a>` : ""}</p></div></div>
+      <p class="muted small">${filterLabel()}</p>
       <div class="cards">
         <div class="card"><b>${me.wins}</b><span>pobeda od ${me.played}</span></div>
         <div class="card"><b>${pct(me.eff, 1)}</b><span>efikasnost</span></div>
@@ -395,10 +401,12 @@
         const nh = gs.filter((x) => Stats.hlKind(x.h)).length;
         return `<details class="night"><summary><span><b>${fmtDate(gs[0].date)}</b>${nh ? ` <span class="hl">${gs.filter((x) => Stats.hlKind(x.h)).map((x) => Stats.HL[Stats.hlKind(x.h)].icon).join("")}</span>` : ""} <span class="muted small">${Stats.DANI[gs[0].wd]} · ${esc(gs[0].book)} · bleja ${n}</span></span>
         <span class="score">${gs[0].p.map((id) => `<span class="pill" style="--c:${color(id)}">${esc(pname(id))} ${cnt[id] || 0}</span>`).join("")}</span></summary>
+        <button class="ghost small" data-share="${gs[0].date}">📣 Podeli na WhatsApp</button>
         <ol class="list">${gs.map((x) => `<li><span class="muted small">#${x.bookIdx}</span> ${dot(x.w)}<b>${esc(pname(x.w))}</b> ${desc(x)}${x.h != null && Stats.hlKind(x.h) ? ` <span class="hl">${Stats.hlText(x.h)}</span>` : ""}</li>`).join("")}</ol></details>`;
       }).join("")}`;
   }
   bind.istorija = () => {
+    $$("[data-share]").forEach((b) => b.onclick = () => shareText(blejaSummary(S.data, b.dataset.share)));
     $("#hq").oninput = (e) => { S.histQ = e.target.value; clearTimeout(S._hq); S._hq = setTimeout(() => { render(); const i = $("#hq"); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, 300); };
     $("#hp").onchange = (e) => { S.histPlayer = e.target.value; render(); };
   };
@@ -509,11 +517,21 @@ Mićko > Ugar | HIO</pre>
         <button id="saveCfg">Sačuvaj podešavanja (prijava kao admin)</button>
         <button id="adminOut" class="ghost">Odjavi admina (obriši token sa ovog uređaja)</button>
         <hr><b>Igrači</b>
-        ${D.players.map((p) => `<div class="prow"><label>${dot(p.id)}Ime <input data-ren="${p.id}" value="${esc(p.name)}"></label>${swatches(color(p.id), D.players.filter((x) => x.id !== p.id).map((x) => color(x.id)), p.id)}</div>`).join("")}
+        ${D.players.map((p) => `<div class="prow"><label>${dot(p.id)}Ime <input data-ren="${p.id}" value="${esc(p.name)}"></label>${swatches(color(p.id), D.players.filter((x) => x.id !== p.id).map((x) => color(x.id)), p.id)}
+          <details class="pdet"><summary class="small">👤 Profil: opis, slika, kontakt</summary>
+            <div class="row">${p.photo ? `<img class="avatar big" src="${p.photo}" alt="">` : ""}<label>Slika <input type="file" accept="image/*" data-photo="${p.id}"></label>${p.photo ? `<button class="ghost small" data-nophoto="${p.id}">Ukloni sliku</button>` : ""}</div>
+            <label>Opis <textarea rows="2" data-pf="desc" data-pid="${p.id}" placeholder="npr. Kralj žandara, igra od 2017.">${esc(p.desc || "")}</textarea></label>
+            <label>Mobilni <input type="tel" data-pf="phone" data-pid="${p.id}" value="${esc(p.phone || "")}" placeholder="+381 6x xxx xxxx"></label>
+            <label>Email <input type="email" data-pf="email" data-pid="${p.id}" value="${esc(p.email || "")}"></label>
+          </details></div>`).join("")}
+        <p class="small muted">Kontakt podaci su šifrovani zajedno sa statistikom — vide ih samo oni koji imaju lozinku ekipe.</p>
         <div class="prow new"><b>➕ Novi igrač</b><input id="newPlayer" placeholder="Ime novog igrača" value="${esc(S.np?.name || "")}">
           <p class="small muted">Boja (slobodne boje):</p>${swatches(S.np?.color, D.players.map((x) => color(x.id)), "__new")}
           <button id="addPlayer">+ Dodaj igrača</button></div>
         <p class="small muted">Novi igrač dobija lozinku ekipe i odmah vidi sve izveštaje. Izmene važe posle „Sačuvaj i objavi“.</p>
+        <hr><b>🔔 Obaveštenja</b>
+        <p class="small muted">Push preko besplatne aplikacije <b>ntfy</b> (iPhone/Android). Posle svake objave igrači dobiju notifikaciju. Igrači instaliraju ntfy i pretplate se na temu (uputstvo im piše u ℹ️).</p>
+        <div class="row"><label>ntfy tema <input id="ntfyTopic" value="${esc(D.settings?.ntfy || "")}" placeholder="npr. maumau-a7k3x9"></label><button id="ntfyGen" class="ghost small">Generiši</button><button id="ntfyTest" class="ghost small">Probna poruka</button></div>
         <hr><label>Nova lozinka ekipe <input id="newPw" type="password" placeholder="ostavi prazno ako ne menjaš"></label>
         <button id="exportJson" class="ghost">⬇ Izvoz JSON</button> <button id="exportCsv" class="ghost">⬇ Izvoz CSV</button>
       </div>
@@ -612,6 +630,33 @@ Mićko > Ugar | HIO</pre>
     const prev = [...D.days].filter((d) => d.date < date).pop(); if (prev) return defaultPlayers(D, prev);
     return S.players.map((p) => p.id);
   }
+  // Slika igrača: smanji na 160px JPEG (da podaci ostanu mali)
+  function shrinkPhoto(file) {
+    return new Promise((res, rej) => {
+      const img = new Image(); img.onerror = rej;
+      img.onload = () => { const s = 160, c = document.createElement("canvas"); c.width = c.height = s; const k = Math.max(s / img.width, s / img.height);
+        const w = img.width * k, h = img.height * k; c.getContext("2d").drawImage(img, (s - w) / 2, (s - h) / 2, w, h); res(c.toDataURL("image/jpeg", 0.8)); URL.revokeObjectURL(img.src); };
+      img.src = URL.createObjectURL(file);
+    });
+  }
+  // Tekst sa rezultatima bleje (za WhatsApp i push)
+  function blejaSummary(data, date) {
+    const day = data.days.find((d) => d.date === date); if (!day) return "";
+    const gs = data.games.filter((g) => g.day === day.n), nm = (id) => (data.players.find((p) => p.id === id) || { name: id }).name;
+    const cnt = {}; gs.forEach((g) => cnt[g.w] = (cnt[g.w] || 0) + 1);
+    const sc = day.p.map((id) => [nm(id), cnt[id] || 0]).sort((a, b) => b[1] - a[1]).map(([n, c]) => `${n} ${c}`).join(", ");
+    const tx = (g) => g.t === "F" ? `${nm(g.w)} > ${nm(g.l[0])}` : g.t === "A" ? `${nm(g.w)} > svi` : `${nm(g.w)} > ${g.l.map(nm).join(", ")}`;
+    const hl = (g) => g.h === "HIO" ? " ⛳" : g.h === -101 ? " 💥" : typeof g.h === "number" ? ` ⚡${g.h}` : "";
+    return `🂡 Mau Mau — bleja ${day.n} (${fmtDate(day.date)} · ${day.book} #${day.bookDay})\n🏆 ${sc}\n${gs.map((g, i) => `${i + 1}. ${tx(g)}${hl(g)}`).join("\n")}\n👉 https://misacrni.github.io/maumau/`;
+  }
+  function shareText(text) {
+    if (navigator.share) return navigator.share({ text }).catch(() => {});
+    window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank");
+  }
+  function ntfy(topic, title, msg) {
+    return fetch("https://ntfy.sh/" + encodeURIComponent(topic), { method: "POST", body: msg, headers: { Title: encodeURIComponent(title).length === title.length ? title : "Mau Mau", Click: "https://misacrni.github.io/maumau/", Tags: "black_joker" } })
+      .then((r) => { if (!r.ok) throw new Error(r.status); });
+  }
   function canAdd() { const E = S.edit; return E && E.w && ((E.t === "F" && E.l.length === 1) || (E.t === "M" && E.l.length >= 2)); }
   // "Protiv više" -> tip partije: 2, 3 ili svi (A)
   function multiType(l, gp, w) { const others = gp.filter((x) => x !== w); return l.length === others.length && others.length >= 3 ? "A" : String(Math.min(l.length, 3)); }
@@ -678,6 +723,15 @@ Mićko > Ugar | HIO</pre>
       } catch (e) { toast("Token ne radi: " + e.message, 5000); }
     };
     $("#saveGh").onclick = publish;
+    $$("[data-pf]").forEach((i) => i.onchange = () => { const p = D.players.find((x) => x.id === i.dataset.pid); const v = i.value.trim(); if (v) p[i.dataset.pf] = v; else delete p[i.dataset.pf]; saveDraft(); toast("Sačuvano u unosu — objavi da vide svi"); });
+    $$("[data-photo]").forEach((i) => i.onchange = async () => {
+      const f = i.files[0]; if (!f) return;
+      try { const p = D.players.find((x) => x.id === i.dataset.photo); p.photo = await shrinkPhoto(f); saveDraft(); render(); } catch { toast("Slika ne može da se učita."); }
+    });
+    $$("[data-nophoto]").forEach((b) => b.onclick = () => { const p = D.players.find((x) => x.id === b.dataset.nophoto); delete p.photo; saveDraft(); render(); });
+    $("#ntfyTopic").onchange = (e) => { D.settings = D.settings || {}; const v = e.target.value.trim().replace(/[^\w-]/g, ""); if (v) D.settings.ntfy = v; else delete D.settings.ntfy; saveDraft(); render(); };
+    $("#ntfyGen").onclick = () => { D.settings = D.settings || {}; D.settings.ntfy = "maumau-" + Math.random().toString(36).slice(2, 10); saveDraft(); render(); };
+    $("#ntfyTest").onclick = async () => { const t = D.settings?.ntfy; if (!t) return toast("Prvo upiši ili generiši temu."); try { await ntfy(t, "Probna poruka", "Ako ovo vidiš, obaveštenja rade 🎉"); toast("Poslato"); } catch (e) { toast("Greška: " + e.message); } };
     $("#setBox").ontoggle = (e) => { S.setOpen = e.target.open; };
     $("#adminOut").onclick = () => { if (!confirm("Obrisati GitHub token sa ovog uređaja?")) return; store.del("mm_admin"); store.del("mm_admin_on"); $("#navAdmin").classList.add("hidden"); S.view = "tabela"; $$("#nav button").forEach((x) => x.classList.toggle("on", x.dataset.v === "tabela")); toast("Admin odjavljen"); render(); };
     $$("[data-ren]").forEach((i) => i.onchange = () => { const p = D.players.find((x) => x.id === i.dataset.ren); if (i.value.trim()) { p.name = i.value.trim(); S.players = D.players; saveDraft(); render(); } });
@@ -731,7 +785,13 @@ Mićko > Ugar | HIO</pre>
       if (!r.ok) throw new Error((await r.json()).message || r.status);
       setData(S.draft); S.box = box; S.password = pw; if (newPw && store.get("mm_pw")) store.set("mm_pw", newPw);
       store.del("mm_draft"); S.draft = null; S.dirty = false; fillFilters();
-      toast("✅ Objavljeno. Igrači vide izmene za ~1 min.", 4000); render();
+      const sum = blejaSummary(S.data, S.edit?.date);
+      let pushed = "";
+      if (S.data.settings?.ntfy && sum) { try { await ntfy(S.data.settings.ntfy, "Mau Mau - novi rezultati", sum); pushed = "🔔 Igračima je poslato push obaveštenje."; } catch { pushed = "⚠️ Push obaveštenje nije poslato."; } }
+      render();
+      modal(`<h2>✅ Objavljeno</h2><p>Igrači vide izmene za ~1 minut. ${pushed}</p>
+        ${sum ? `<pre class="fmt">${esc(sum)}</pre><button id="shareWa" class="primary">📣 Pošalji u WhatsApp grupu</button>` : ""}`);
+      const sw = $("#shareWa"); if (sw) sw.onclick = () => shareText(sum);
     } catch (e) { toast("Greška: " + e.message, 5000); btn.disabled = false; btn.textContent = "☁️ Sačuvaj i objavi"; }
   }
 
