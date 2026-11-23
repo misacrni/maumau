@@ -71,7 +71,7 @@
     setTimeout(() => { const b = $("#enableAdmin"); if (b) b.onclick = () => { showAdmin(); $("#modal").classList.add("hidden"); S.view = "admin"; $$("#nav button").forEach((x) => x.classList.toggle("on", x.dataset.v === "admin")); render(); }; }, 0);
     modal(`<h2>ℹ️ O aplikaciji</h2>
       <div class="box"><b>✏️ Unos rezultata (admin)</b><p class="small muted">${store.get("mm_admin")?.token ? "✅ Ovaj uređaj je prijavljen kao admin (GitHub token je sačuvan)." : "Uključuje tab Unos na ovom uređaju. Za objavu je potreban GitHub token koji ima samo admin, pa igrači ne mogu ništa da promene."}</p><button id="enableAdmin">${store.get("mm_admin_on") ? "Otvori Unos" : "Uključi tab Unos"}</button></div>
-      ${S.data.settings?.ntfy ? `<div class="box"><b>🔔 Obaveštenja o novim rezultatima</b><p class="small">1. Instaliraj besplatnu aplikaciju <b>ntfy</b> (App Store / Google Play).<br>2. U njoj tapni <b>+</b> i upiši temu: <code>${esc(S.data.settings.ntfy)}</code><br>3. Gotovo — posle svake bleje stiže notifikacija sa rezultatima.</p></div>` : ""}
+      ${S.data.settings?.ntfy ? `<div class="box"><b>🔔 Obaveštenja o novim rezultatima</b><p class="small">1. Instaliraj besplatnu aplikaciju <b>ntfy</b> (App Store / Google Play).<br>2. U njoj tapni <b>+</b> i upiši temu: <code>${esc(S.data.settings.ntfy)}</code><br>3. Tapni <b>Subscribe</b> i dozvoli notifikacije kad telefon pita.<br>4. Gotovo — posle svake bleje stiže notifikacija sa rezultatima.</p></div>` : ""}
       <div class="box"><b>📤 Pozovi nekog u aplikaciju</b><p class="small muted">Pošalji pozdravnu poruku sa linkom, uputstvom i (po želji) lozinkom.</p><button id="infoShare">📤 Pošalji poziv</button></div>
       <div class="box"><b>🚪 Odjava</b><p class="small muted">Briše sa ovog uređaja zapamćenu lozinku ekipe i, ako postoji, admin token i nesačuvan unos.</p><button id="logoutBtn" class="ghost">Odjavi se</button></div>
       <p>Statistika naše Mau Mau bleje od 2017. Svi podaci su iz sveski i Excela, a od sada se unose ovde. Gore biraš godinu ili svesku, i svi prikazi se računaju samo za to.</p>
@@ -105,7 +105,7 @@ Ovde je sva statistika naše bleje od 2017. — pobede, efikasnost, finala, H2H,
 
 Savet: otvori link u Safariju/Chrome-u i izaberi „Dodaj na početni ekran“ — radi kao prava aplikacija.${topic ? `
 
-🔔 *Obaveštenja posle bleje:* instaliraj besplatnu aplikaciju *ntfy*, tapni *+* i upiši temu *${topic}*.` : ""}
+🔔 *Obaveštenja posle bleje:* instaliraj besplatnu aplikaciju *ntfy*, tapni *+*, upiši temu *${topic}*, tapni *Subscribe* i dozvoli notifikacije.` : ""}
 
 Vidimo se na bleji! 🃏`;
     modal(`<h2>📤 Pozovi nekog u aplikaciju</h2><p class="small muted">Pregledaj i po želji izmeni poruku, pa je pošalji (WhatsApp, Viber, SMS…). Lozinku dodaj samo ako šalješ nekom iz ekipe.</p>
