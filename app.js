@@ -411,38 +411,37 @@
     ensureDraft();
     const cfg = store.get("mm_admin", { owner: "", repo: "", branch: "main", token: "" });
     const D = S.draft, books = [...new Set(D.days.map((d) => d.book))];
-    if (!S.edit) { const last = D.days[D.days.length - 1]; S.edit = { date: today(), book: last?.book || "", p: last ? [...last.p] : S.players.map((p) => p.id), w: null, t: "F", l: [] }; }
+    if (!S.edit) { const last = D.days[D.days.length - 1]; S.edit = { date: today(), book: last?.book || "", w: null, t: "F", l: [], gp: null }; }
     const E = S.edit, day = D.days.find((d) => d.date === E.date);
     const dayGames = day ? D.games.filter((g) => g.day === day.n) : [];
-    const present = day ? day.p : E.p;
-    if (!E.gp || E.gp.some((id) => !present.includes(id))) E.gp = [...present];
-    const gp = E.gp.filter((id) => present.includes(id));
+    if (!E.gp) E.gp = defaultPlayers(D, day);
+    const gp = E.gp;
     const chip = (id, on, attr) => `<button class="pchip ${on ? "on" : ""}" style="--c:${color(id)}" ${attr}="${id}">${esc(pname(id))}</button>`;
     const others = gp.filter((id) => id !== E.w);
-    const desc = (x) => x.t === "F" ? `finale vs ${esc(pname(x.l[0]))}` : x.t === "2" ? `vs ${x.l.map((i) => esc(pname(i))).join(" i ")}` : "vs svi";
     const curBook = day?.book || E.book;
-    const blejaNo = day ? day.n : Math.max(0, ...D.days.map((d) => d.n)) + 1;
-    const bookNo = day ? day.bookDay : D.days.filter((d) => d.book === curBook).length + 1;
-    const partNo = dayGames.length + 1, totalNo = D.games.length + 1;
+    const blejaNo = day ? day.n : Math.max(0, ...D.days.filter((d) => d.date < E.date).map((d) => d.n)) + 1;
+    const bookNo = day ? day.bookDay : D.days.filter((d) => d.book === curBook && d.date < E.date).length + 1;
+    const editing = E.editId != null ? dayGames.findIndex((g) => g.id === E.editId) + 1 : 0;
+    const partNo = editing || dayGames.length + 1, totalNo = D.games.length + 1;
     const adm = cfg.token ? `<p class="small ok">✅ Prijavljen kao admin (${esc(cfg.owner)}/${esc(cfg.repo)})</p>` : `<p class="small warn">⚠️ Nisi prijavljen kao admin: unos možeš da pripremiš, ali za objavu upiši GitHub token u ⚙️ Podešavanja dole.</p>`;
+    const recent = [...D.days].reverse().slice(0, 60);
     return `<h2>Unos partija</h2>${adm}
     <div class="cards">
-      <div class="card"><b>Bleja ${blejaNo}</b><span>${day ? "u toku" : "nova"} · ${esc(curBook)} #${bookNo}</span></div>
-      <div class="card"><b>Partija ${partNo}.</b><span>na ovoj bleji · ukupno #${totalNo}</span></div>
+      <div class="card"><b>Bleja ${blejaNo}</b><span>${day ? (E.date >= today() ? "u toku" : "ranija bleja") : "nova"} · ${esc(curBook)} #${bookNo}</span></div>
+      <div class="card"><b>Partija ${partNo}.</b><span>${editing ? "✏️ ispravka" : `na ovoj bleji · ukupno #${totalNo}`}</span></div>
     </div>
     <div class="box">
       <div class="row"><label>Datum <input type="date" id="eDate" value="${E.date}"></label>
-      <label>Sveska <select id="eBook">${[...new Set([...books, E.book].filter(Boolean))].map((b) => `<option ${b === (day?.book || E.book) ? "selected" : ""}>${esc(b)}</option>`).join("")}</select></label></div>
+      <label>Sveska <select id="eBook">${[...new Set([...books, E.book].filter(Boolean))].map((b) => `<option ${b === curBook ? "selected" : ""}>${esc(b)}</option>`).join("")}</select></label></div>
       ${E.newBook ? `<div class="row"><label>Naziv nove sveske <input id="nbName" value="${esc(E.newBook)}"></label><button id="nbOk">Otvori svesku</button><button id="nbX" class="ghost">Otkaži</button></div>
         <p class="small muted">Nova sveska počinje od ove bleje (bleja #1 u svesci). Sve statistike se mogu filtrirati po svesci.</p>`
-        : `<button id="nbBtn" class="ghost small">📓 Nova sveska</button>`}
-      <p class="small muted">Ko je na bleji:</p>
-      <div class="chips">${S.players.map((p) => chip(p.id, present.includes(p.id), "data-pp")).join("")}</div>
+        : `<div class="row"><button id="nbBtn" class="ghost small">📓 Nova sveska</button>
+           <label class="grow">Ispravi raniju bleju <select id="ePast"><option value="">— izaberi —</option>${recent.map((d) => `<option value="${d.date}" ${d.date === E.date ? "selected" : ""}>${fmtDate(d.date)} · ${esc(d.book)} · bleja ${d.n} (${D.games.filter((g) => g.day === d.n).length})</option>`).join("")}</select></label></div>`}
     </div>
-    <div class="box">
-      <details ${gp.length !== present.length ? "open" : ""}><summary class="small muted">Igrali ovu partiju: ${gp.length === present.length ? "svi" : gp.map(pname).join(", ")}</summary>
-      <div class="chips">${present.map((id) => chip(id, gp.includes(id), "data-gp")).join("")}</div></details>
-      <p class="small muted">Pobednik partije:</p>
+    <div class="box ${editing ? "editing" : ""}">
+      <p class="small muted">Igrali ${partNo}. partiju:</p>
+      <div class="chips">${S.players.map((p) => chip(p.id, gp.includes(p.id), "data-gp")).join("")}</div>
+      <p class="small muted">Pobednik:</p>
       <div class="chips">${gp.map((id) => chip(id, E.w === id, "data-w")).join("")}</div>
       ${E.w ? `<p class="small muted">Kraj partije:</p>
       <div class="chips">
@@ -457,9 +456,31 @@
         <button class="chip ${E.h === -101 ? "on" : ""}" data-h="-101">💥 −101</button>
         <button class="chip ${E.h === "HIO" ? "on" : ""}" data-h="HIO">⛳ Hole in one</button></div>
         ${typeof E.h === "number" && E.h >= 190 ? `<label class="small muted">Najviše poena u toku partije (190–200) <input id="eClutch" type="number" min="190" max="200" value="${E.h}" inputmode="numeric"></label>` : ""}` : ""}
-      <button id="addGame" class="primary" ${canAdd() ? "" : "disabled"}>+ Dodaj ${partNo}. partiju</button>
+      <button id="addGame" class="primary" ${canAdd() ? "" : "disabled"}>${editing ? `💾 Sačuvaj ispravku ${partNo}. partije` : `+ Dodaj ${partNo}. partiju`}</button>
+      ${canAdd() ? "" : `<p class="small warn hint">👆 ${!E.w ? "Tapni pobednika partije." : E.t === "F" ? "Tapni protivnika u finalu." : "Tapni 2 protivnika."}</p>`}
+      ${editing ? `<button id="cancelEdit" class="ghost primary">Otkaži ispravku</button>` : ""}
     </div>
-    ${dayGames.length ? `<h3>Bleja ${blejaNo} · ${fmtDate(E.date)} · ${dayGames.length} ${dayGames.length === 1 ? "partija" : dayGames.length < 5 ? "partije" : "partija"}</h3><ol class="list">${dayGames.map((x) => `<li>${dot(x.w)}<b>${esc(pname(x.w))}</b> ${desc(x)} ${x.h != null ? Stats.hlText(x.h) : ""} <button class="ghost small" data-del="${x.id}">✕</button></li>`).join("")}</ol>` : ""}
+    ${dayGames.length ? `<h3>Bleja ${blejaNo} · ${fmtDate(E.date)} · ${dayGames.length} ${dayGames.length === 1 ? "partija" : dayGames.length < 5 ? "partije" : "partija"}</h3>
+      <p class="small muted">Dodirni ✏️ da ispraviš partiju, ✕ da je obrišeš.</p>
+      <ol class="list glist">${dayGames.map((x) => `<li class="${x.id === E.editId ? "on" : ""}">${dot(x.w)}<b>${esc(pname(x.w))}</b> ${gdesc(x)} ${x.h != null ? Stats.hlText(x.h) : ""}
+        <span class="muted small">(${(x.p || day.p).map(pname).join(", ")})</span>
+        <span class="acts"><button class="ghost small" data-ed="${x.id}">✏️</button><button class="ghost small" data-del="${x.id}">✕</button></span></li>`).join("")}</ol>` : ""}
+    <details class="box" id="impBox" ${S.impOpen ? "open" : ""}><summary>📋 Unos iz teksta / sa slike sveske</summary>
+      <p class="small muted">Nalepi partije u ovom obliku (jedna partija u redu). Ovaj tekst može da napravi AI agent iz slike stranice sveske.</p>
+      <pre class="fmt">BLEJA 26.11.2026 | 6 Brown
+IGRAČI: Šomi, Mićko, Nikod, Lešma, Ugar
+Šomi > Mićko
+Nikod > Lešma, Ugar
+Lešma > svi
+Ugar > Šomi | bez: Mićko
+Šomi > Nikod | clutch 197
+Mićko > Ugar | HIO</pre>
+      <textarea id="impText" rows="8" placeholder="Nalepi tekst ovde…">${esc(S.impText || "")}</textarea>
+      <button id="impParse" class="ghost">Proveri</button>
+      ${S.imp ? `<div class="imp">${S.imp.errors.map((e) => `<p class="small warn">⚠️ ${esc(e)}</p>`).join("")}
+        ${S.imp.items.length ? `<ol class="list">${S.imp.items.map((x) => `<li><span class="muted small">${fmtDate(x.date)}${x.book ? " · " + esc(x.book) : ""}</span> ${dot(x.w)}<b>${esc(pname(x.w))}</b> ${gdesc(x)} ${x.h != null ? Stats.hlText(x.h) : ""} <span class="muted small">(${x.gp.map(pname).join(", ")})</span></li>`).join("")}</ol>
+        <button id="impAdd" class="primary" ${S.imp.errors.length ? "disabled" : ""}>+ Dodaj ${S.imp.items.length} partija</button>` : ""}</div>` : ""}
+    </details>
     <div class="row sticky-save"><button id="saveGh" class="primary" ${S.dirty || store.get("mm_draft") ? "" : "disabled"}>☁️ Sačuvaj i objavi</button><button id="discard" class="ghost">Odbaci izmene</button></div>
     <details class="box" id="setBox" ${S.setOpen ? "open" : ""}><summary>⚙️ Podešavanja (admin, igrači i boje, lozinka, izvoz)</summary>
       <div class="form">
@@ -483,32 +504,115 @@
   function swatches(cur, taken, attr) {
     return `<div class="sw">${PALETTE.map(([c, n]) => { const t = taken.includes(c); return `<button type="button" class="swb ${c === cur ? "on" : ""}" ${t ? "disabled" : ""} title="${n}${t ? " (zauzeta)" : ""}" style="--c:${c}" data-k="${attr}" data-c="${c}"></button>`; }).join("")}</div>`;
   }
+  const gdesc = (x) => x.t === "F" ? `finale vs ${esc(pname(x.l[0]))}` : x.t === "2" ? `vs ${x.l.map((i) => esc(pname(i))).join(" i ")}` : "vs svi";
+  // Igrači za novu partiju: kao prethodna partija te bleje, inače kao poslednja bleja
+  function defaultPlayers(D, day) {
+    const order = (arr) => S.players.map((p) => p.id).filter((id) => arr.includes(id));
+    if (day) { const gs = D.games.filter((g) => g.day === day.n); const lg = gs[gs.length - 1]; return order(lg?.p || day.p); }
+    const prev = [...D.days].filter((d) => d.date < S.edit.date).pop() || D.days[D.days.length - 1];
+    if (prev) return order(prev.p);
+    return S.players.map((p) => p.id);
+  }
+  // Posle svake izmene: igrači bleje = svi koji su igrali bar jednu partiju; brojevi bleja i svezaka redom po datumu
+  function normalize(D) {
+    for (const d of D.days) {
+      const gs = D.games.filter((g) => g.day === d.n);
+      gs.forEach((g) => { if (!g.p) g.p = [...d.p]; });
+      d.p = S.players.map((p) => p.id).filter((id) => gs.some((g) => g.p.includes(id)));
+      gs.forEach((g) => { if (g.p.length === d.p.length) delete g.p; });
+    }
+    D.days = D.days.filter((d) => D.games.some((g) => g.day === d.n));
+    D.days.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : a.n - b.n);
+    const remap = {}, perBook = {};
+    D.days.forEach((d, i) => { remap[d.n] = i + 1; d.n = i + 1; perBook[d.book] = (perBook[d.book] || 0) + 1; d.bookDay = perBook[d.book]; });
+    D.games.forEach((g) => g.day = remap[g.day]);
+    D.games.sort((a, b) => a.day - b.day || a.id - b.id);
+  }
+  function putGame(D, x, editId) {
+    let day = D.days.find((d) => d.date === x.date);
+    if (!day) {
+      const book = x.book || [...D.days].filter((d) => d.date < x.date).pop()?.book || D.days[D.days.length - 1]?.book || "1";
+      day = { n: Math.max(0, ...D.days.map((d) => d.n)) + 1, date: x.date, book, bookDay: 0, p: [...x.gp] };
+      D.days.push(day);
+    } else if (x.book && x.book !== day.book && x.fromImport) day.book = x.book;
+    D.games.filter((g) => g.day === day.n).forEach((g) => { if (!g.p) g.p = [...day.p]; });
+    const l = x.t === "A" ? x.gp.filter((id) => id !== x.w) : [...x.l];
+    const g = editId != null ? D.games.find((y) => y.id === editId) : { id: Math.max(0, ...D.games.map((y) => y.id)) + 1, day: day.n };
+    Object.assign(g, { w: x.w, l, t: x.t, p: [...x.gp] }); if (x.h != null) g.h = x.h; else delete g.h;
+    if (editId == null) D.games.push(g);
+    normalize(D);
+  }
+  // Parser teksta (npr. iz AI agenta koji čita sliku sveske)
+  function parseImport(text, D) {
+    const norm = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/gi, "dj").toLowerCase().trim();
+    const find = (name) => { const n = norm(name); if (!n) return null; return D.players.find((p) => norm(p.name) === n) || D.players.find((p) => norm(p.name).startsWith(n) && n.length >= 3) || null; };
+    const items = [], errors = [];
+    let date = S.edit?.date || today(), book = "", players = null;
+    text.split(/\r?\n/).forEach((raw, i) => {
+      const line = raw.replace(/[–—]/g, "-").replace(/\s#.*$/, "").trim(); if (!line || line.startsWith("#")) return;
+      if (/#\s*PROVERI/i.test(raw)) errors.push(`Red ${i + 1}: agent nije siguran – ${raw.split("#").pop().trim()}`);
+      const ln = `Red ${i + 1}: `;
+      let m = line.match(/^bleja\s+(\d{1,2})\.(\d{1,2})\.(\d{4})\.?\s*(?:\|\s*(.+))?$/i);
+      if (m) { date = `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`; book = (m[4] || "").trim(); players = null; return; }
+      m = line.match(/^igra[cč]i\s*:\s*(.+)$/i);
+      if (m) { const ps = m[1].split(/[,;]/).map((x) => x.trim()).filter(Boolean).map((n) => [n, find(n)]); ps.filter((x) => !x[1]).forEach((x) => errors.push(ln + `nepoznat igrač „${x[0]}“`)); players = ps.map((x) => x[1]).filter(Boolean).map((p) => p.id); return; }
+      const [main, ...opts] = line.split("|").map((x) => x.trim());
+      m = main.match(/^(.+?)\s*>\s*(.+)$/);
+      if (!m) return errors.push(ln + `ne razumem „${line}“`);
+      const w = find(m[1]); if (!w) return errors.push(ln + `nepoznat pobednik „${m[1]}“`);
+      let gp = players ? [...players] : defaultPlayersFor(D, date, items);
+      let h = null;
+      for (const o of opts) {
+        let mm;
+        if ((mm = o.match(/^bez\s*:?\s*(.+)$/i))) mm[1].split(/[,;]/).forEach((n) => { const p = find(n); if (!p) errors.push(ln + `nepoznat igrač „${n.trim()}“`); else gp = gp.filter((x) => x !== p.id); });
+        else if ((mm = o.match(/^igrali\s*:?\s*(.+)$/i))) gp = mm[1].split(/[,;]/).map((n) => find(n)?.id).filter(Boolean);
+        else if ((mm = o.match(/clutch\s*(\d{3})/i))) { const v = +mm[1]; if (v < 190 || v > 200) errors.push(ln + "clutch mora biti 190–200"); else h = v; }
+        else if (/^-\s*101$/.test(o.replace(/\s/g, ""))) h = -101;
+        else if (/^hio|hole in one$/i.test(o)) h = "HIO";
+        else errors.push(ln + `nepoznata oznaka „${o}“`);
+      }
+      if (!gp.includes(w.id)) gp.push(w.id);
+      let t, l = [];
+      if (/^svi$|^all$|^sve$/i.test(m[2].trim())) t = "A";
+      else {
+        const ls = m[2].split(/[,;]|\si\s/).map((n) => n.trim()).filter(Boolean).map((n) => [n, find(n)]);
+        const bad = ls.filter((x) => !x[1]); if (bad.length) return errors.push(ln + `nepoznat igrač „${bad[0][0]}“`);
+        l = ls.map((x) => x[1].id); t = l.length === 1 ? "F" : l.length === 2 ? "2" : null;
+        if (!t) return errors.push(ln + "posle > ide 1 igrač (finale), 2 igrača ili „svi“");
+        l.forEach((id) => { if (!gp.includes(id)) gp.push(id); });
+      }
+      gp = S.players.map((p) => p.id).filter((id) => gp.includes(id));
+      if (t === "A" && gp.length < 3) return errors.push(ln + "„svi“ traži bar 3 igrača u partiji");
+      items.push({ date, book, gp, w: w.id, t, l, h, fromImport: true });
+    });
+    if (!items.length && !errors.length) errors.push("Nema partija u tekstu.");
+    return { items, errors };
+  }
+  function defaultPlayersFor(D, date, items) {
+    const prevItem = [...items].reverse().find((x) => x.date === date); if (prevItem) return [...prevItem.gp];
+    const day = D.days.find((d) => d.date === date); if (day) return defaultPlayers(D, day);
+    const prev = [...D.days].filter((d) => d.date < date).pop(); if (prev) return defaultPlayers(D, prev);
+    return S.players.map((p) => p.id);
+  }
   function canAdd() { const E = S.edit; return E && E.w && (E.t === "A" || (E.t === "F" && E.l.length === 1) || (E.t === "2" && E.l.length === 2)); }
   bind.admin = () => {
     const E = S.edit, D = S.draft;
     const books = [...new Set(D.days.map((d) => d.book))];
-    $("#eDate").onchange = (e) => { E.date = e.target.value; E.w = null; E.l = []; render(); };
+    const reset = () => { E.w = null; E.l = []; E.t = "F"; E.h = null; E.gp = null; E.editId = null; };
+    $("#eDate").onchange = (e) => { E.date = e.target.value; reset(); render(); };
+    const ep = $("#ePast"); if (ep) ep.onchange = (e) => { if (!e.target.value) return; E.date = e.target.value; reset(); render(); window.scrollTo(0, 0); };
     const nb = $("#nbBtn"); if (nb) nb.onclick = () => { E.newBook = (books.length + 1) + " "; render(); const i = $("#nbName"); i.focus(); i.setSelectionRange(i.value.length, i.value.length); };
     const nx = $("#nbX"); if (nx) nx.onclick = () => { E.newBook = null; render(); };
     const nok = $("#nbOk"); if (nok) nok.onclick = () => {
       const name = $("#nbName").value.trim();
       if (!name || /^\d+$/.test(name)) return toast("Upiši naziv, npr. „7 Black“.");
       if (books.includes(name)) return toast("Ta sveska već postoji.");
-      E.newBook = null; E.book = name; const day = D.days.find((d) => d.date === E.date); if (day) { day.book = name; day.bookDay = 1; saveDraft(); }
+      E.newBook = null; E.book = name; const day = D.days.find((d) => d.date === E.date); if (day) { day.book = name; normalize(D); saveDraft(); }
       toast("Nova sveska: " + name); render();
     };
-    $("#eBook").onchange = (e) => {
-      let b = e.target.value;
-      E.book = b; const day = D.days.find((d) => d.date === E.date); if (day) { day.book = b; saveDraft(); } render();
-    };
-    $$("[data-pp]").forEach((b) => b.onclick = () => {
-      const id = b.dataset.pp, day = D.days.find((d) => d.date === E.date), arr = day ? day.p : E.p;
-      const i = arr.indexOf(id); i >= 0 ? arr.splice(i, 1) : arr.push(id);
-      arr.sort((a, c) => S.players.findIndex((p) => p.id === a) - S.players.findIndex((p) => p.id === c));
-      if (day) saveDraft(); E.w = null; E.l = []; render();
-    });
-    $$("[data-gp]").forEach((b) => b.onclick = () => { const i = E.gp.indexOf(b.dataset.gp); i >= 0 ? E.gp.splice(i, 1) : E.gp.push(b.dataset.gp); E.w = null; E.l = []; render(); });
-    $$("[data-w]").forEach((b) => b.onclick = () => { E.w = b.dataset.w; E.l = []; E.h = null; render(); });
+    $("#eBook").onchange = (e) => { E.book = e.target.value; const day = D.days.find((d) => d.date === E.date); if (day) { day.book = E.book; normalize(D); saveDraft(); } render(); };
+    $$("[data-gp]").forEach((b) => b.onclick = () => { const i = E.gp.indexOf(b.dataset.gp); i >= 0 ? E.gp.splice(i, 1) : E.gp.push(b.dataset.gp); E.gp = S.players.map((p) => p.id).filter((id) => E.gp.includes(id)); if (!E.gp.includes(E.w)) E.w = null; E.l = E.l.filter((x) => E.gp.includes(x)); render(); });
+    $$("[data-w]").forEach((b) => b.onclick = () => { E.w = b.dataset.w; E.l = E.l.filter((x) => x !== E.w); if (E.editId == null) E.h = null; render(); });
     $$("[data-h]").forEach((b) => b.onclick = () => { const v = b.dataset.h; E.h = v === "" ? null : v === "clutch" ? 195 : v === "-101" ? -101 : "HIO"; render(); });
     const ec = $("#eClutch"); if (ec) ec.onchange = () => { const v = Math.round(+ec.value); E.h = v >= 190 && v <= 200 ? v : 195; render(); };
     $$("[data-t]").forEach((b) => b.onclick = () => { E.t = b.dataset.t; E.l = []; render(); });
@@ -517,23 +621,28 @@
       render();
     });
     const add = $("#addGame"); if (add) add.onclick = () => {
-      let day = D.days.find((d) => d.date === E.date);
-      if (!day) {
-        if (E.p.length < 3) return toast("Potrebna su najmanje 3 igrača (kvorum).");
-        const book = E.book || D.days[D.days.length - 1]?.book || "1";
-        day = { n: Math.max(0, ...D.days.map((d) => d.n)) + 1, date: E.date, book, bookDay: D.days.filter((d) => d.book === book).length + 1, p: [...E.p] };
-        D.days.push(day); D.days.sort((a, b) => a.date < b.date ? -1 : 1);
-      }
-      const gp = E.gp.filter((id) => day.p.includes(id));
-      if (gp.length < 2) return toast("U partiji moraju biti bar 2 igrača.");
-      const l = E.t === "A" ? gp.filter((x) => x !== E.w) : [...E.l];
-      const g = { id: Math.max(0, ...D.games.map((g) => g.id)) + 1, day: day.n, w: E.w, l, t: E.t };
-      if (gp.length !== day.p.length) g.p = gp;
-      if (E.h != null) g.h = E.h;
-      D.games.push(g);
-      E.w = null; E.l = []; E.t = "F"; E.gp = null; E.h = null; saveDraft(); toast("Partija dodata"); render();
+      if (E.gp.length < 2) return toast("U partiji moraju biti bar 2 igrača.");
+      const day = D.days.find((d) => d.date === E.date);
+      if (!day && E.gp.length < 3) return toast("Za novu bleju potrebna su najmanje 3 igrača (kvorum).");
+      const wasEdit = E.editId != null;
+      putGame(D, { date: E.date, book: E.book, gp: [...E.gp], w: E.w, t: E.t, l: [...E.l], h: E.h }, E.editId);
+      const keep = [...E.gp]; reset(); if (!wasEdit) E.gp = keep;
+      saveDraft(); toast(wasEdit ? "Ispravka sačuvana" : "Partija dodata"); render();
     };
-    $$("[data-del]").forEach((b) => b.onclick = () => { if (!confirm("Obriši ovu partiju?")) return; D.games = D.games.filter((g) => g.id !== +b.dataset.del); saveDraft(); render(); });
+    const ce = $("#cancelEdit"); if (ce) ce.onclick = () => { reset(); render(); };
+    $$("[data-ed]").forEach((b) => b.onclick = () => {
+      const g = D.games.find((x) => x.id === +b.dataset.ed), day = D.days.find((d) => d.n === g.day);
+      Object.assign(E, { editId: g.id, gp: [...(g.p || day.p)], w: g.w, t: g.t, l: g.t === "A" ? [] : [...g.l], h: g.h ?? null });
+      render(); window.scrollTo(0, $(".box.editing")?.offsetTop - 70 || 0);
+    });
+    $$("[data-del]").forEach((b) => b.onclick = () => { if (!confirm("Obriši ovu partiju?")) return; const id = +b.dataset.del; D.games.forEach((g) => { const d = D.days.find((x) => x.n === g.day); if (!g.p && d) g.p = [...d.p]; }); D.games = D.games.filter((g) => g.id !== id); if (E.editId === id) reset(); normalize(D); saveDraft(); render(); });
+    $("#impBox").ontoggle = (e) => { S.impOpen = e.target.open; };
+    $("#impText").oninput = (e) => { S.impText = e.target.value; S.imp = null; };
+    $("#impParse").onclick = () => { S.impText = $("#impText").value; S.imp = parseImport(S.impText, D); render(); };
+    const ia = $("#impAdd"); if (ia) ia.onclick = () => {
+      const its = S.imp.items; its.forEach((x) => putGame(D, x, null));
+      saveDraft(); E.date = its[its.length - 1].date; reset(); S.imp = null; S.impText = ""; toast(`Dodato ${its.length} partija — proveri pa „Sačuvaj i objavi“`); render();
+    };
     $("#discard").onclick = () => { if (!confirm("Odbaciti sve nesačuvane izmene?")) return; store.del("mm_draft"); S.draft = null; S.dirty = false; S.edit = null; S.players = S.data.players; render(); };
     $("#saveCfg").onclick = async () => {
       const c = { owner: $("#cOwner").value.trim() || "misacrni", repo: $("#cRepo").value.trim() || "maumau", branch: $("#cBranch").value.trim() || "main", token: $("#cToken").value.trim() };
