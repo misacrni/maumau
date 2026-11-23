@@ -75,7 +75,7 @@ html, body { overflow-x: hidden; }
 /* Chart */
 .chart { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 8px; }
 .chart svg { width: 100%; height: auto; display: block; }
-.chart .gl { stroke: var(--line); } .chart .ax { fill: var(--muted); font-size: 11px; } .chart .lbl { font-size: 11px; font-weight: 700; paint-order: stroke; stroke: var(--card); stroke-width: 3px; }
+.chart .gl { stroke: var(--line); } .chart .yl { stroke-dasharray: 3 3; } .chart .tick, .chart .axl { stroke: var(--muted); } .chart .yr { font-weight: 700; fill: var(--fg); } .chart .ax { fill: var(--muted); font-size: 11px; } .chart .lbl { font-size: 12.5px; font-weight: 700; paint-order: stroke; stroke: var(--card); stroke-width: 3px; }
 
 /* Misc */
 .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0; }
