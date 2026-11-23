@@ -405,8 +405,17 @@
 
   // ---------- Unos (admin) ----------
   const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
-  function ensureDraft() { if (!S.draft) S.draft = store.get("mm_draft") || JSON.parse(JSON.stringify(S.data)); S.players = S.draft.players; }
-  function saveDraft() { S.dirty = true; store.set("mm_draft", S.draft); }
+  // Nacrt unosa važi samo za verziju podataka na kojoj je nastao (da se ne pregaze novije objave)
+  const baseId = () => (S.box?.ct || "").slice(0, 40);
+  function ensureDraft() {
+    if (!S.draft) {
+      const st = store.get("mm_draft");
+      if (st && st.__base && st.__base !== baseId()) { store.del("mm_draft"); toast("Podaci su u međuvremenu ažurirani — stari nesačuvan unos je odbačen.", 5000); }
+      S.draft = (st && (!st.__base || st.__base === baseId())) ? st : JSON.parse(JSON.stringify(S.data));
+    }
+    S.players = S.draft.players;
+  }
+  function saveDraft() { S.dirty = true; S.draft.__base = baseId(); store.set("mm_draft", S.draft); }
   function vAdmin() {
     ensureDraft();
     const cfg = store.get("mm_admin", { owner: "", repo: "", branch: "main", token: "" });
@@ -697,7 +706,7 @@ Mićko > Ugar | HIO</pre>
     if (!pw) return toast("Nema lozinke ekipe — uloguj se ponovo.");
     const btn = $("#saveGh"); btn.disabled = true; btn.textContent = "Objavljujem…";
     try {
-      S.draft.updated = new Date().toISOString();
+      S.draft.updated = new Date().toISOString(); delete S.draft.__base;
       const box = await MMCrypto.encrypt(S.draft, pw);
       const api = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${DATA_ENC}`;
       const H = { Authorization: `Bearer ${cfg.token}`, Accept: "application/vnd.github+json" };
