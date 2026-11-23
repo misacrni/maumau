@@ -116,3 +116,8 @@ html, body { overflow-x: hidden; }
 th.sortable { cursor: pointer; user-select: none; }
 th.sortable[data-dir=desc]::after { content: " ▼"; font-size: 9px; } th.sortable[data-dir=asc]::after { content: " ▲"; font-size: 9px; }
 .ok { color: var(--accent2); } .warn { color: #b45309; }
+.prow { border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 6px; } .prow.new { background: color-mix(in srgb, var(--accent) 5%, transparent); padding: 10px; border-radius: 10px; }
+.sw { display: flex; flex-wrap: wrap; gap: 8px; }
+.swb { width: 32px; height: 32px; min-height: 0; padding: 0; border-radius: 50%; background: var(--c); border: 3px solid transparent; box-shadow: 0 0 0 1px var(--line); }
+.swb.on { border-color: var(--card); box-shadow: 0 0 0 3px var(--c); }
+.swb:disabled { opacity: .18; }

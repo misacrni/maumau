@@ -2,7 +2,10 @@
    a unos ide preko GitHub API-ja sa tokenom koji ima samo admin. */
 (() => {
   const DATA_ENC = "data/data.enc.json", DATA_PLAIN = "data/data.json";
-  const COLORS = ["#2563eb", "#dc2626", "#16a34a", "#d97706", "#7c3aed", "#0891b2", "#db2777", "#65a30d"];
+  // Paleta boja igrača; postojeći igrači imaju svoje boje kao do sada
+  const PALETTE = [["#2563eb", "plava"], ["#ca8a04", "oker"], ["#ea580c", "narandžasta"], ["#16a34a", "zelena"], ["#7c3aed", "ljubičasta"],
+    ["#dc2626", "crvena"], ["#0891b2", "tirkizna"], ["#db2777", "roze"], ["#92400e", "braon"], ["#475569", "siva"], ["#65a30d", "maslinasta"], ["#0f172a", "crna"]];
+  const DEFAULT_COLOR = { S: "#2563eb", N: "#ca8a04", M: "#ea580c", L: "#16a34a", U: "#7c3aed" };
   const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const pct = (v, d = 0) => v == null ? "–" : (v * 100).toFixed(d) + "%";
@@ -20,7 +23,14 @@
     pair: { a: null, b: null }, histPlayer: "", histQ: "",
     draft: null, dirty: false,
   };
-  const color = (id) => COLORS[S.players.findIndex((p) => p.id === id) % COLORS.length];
+  const color = (id) => {
+    const p = S.players.find((x) => x.id === id);
+    if (p?.color) return p.color;
+    if (DEFAULT_COLOR[id]) return DEFAULT_COLOR[id];
+    const used = new Set(S.players.map((x) => x.color || DEFAULT_COLOR[x.id]).filter(Boolean));
+    const free = PALETTE.map((c) => c[0]).filter((c) => !used.has(c));
+    return free[S.players.findIndex((x) => x.id === id) % Math.max(1, free.length)] || "#64748b";
+  };
   const pname = (id) => (S.players.find((p) => p.id === id) || { name: id }).name;
   const dot = (id) => `<i class="dot" style="background:${color(id)}"></i>`;
 
@@ -451,7 +461,7 @@
     </div>
     ${dayGames.length ? `<h3>Bleja ${blejaNo} · ${fmtDate(E.date)} · ${dayGames.length} ${dayGames.length === 1 ? "partija" : dayGames.length < 5 ? "partije" : "partija"}</h3><ol class="list">${dayGames.map((x) => `<li>${dot(x.w)}<b>${esc(pname(x.w))}</b> ${desc(x)} ${x.h != null ? Stats.hlText(x.h) : ""} <button class="ghost small" data-del="${x.id}">✕</button></li>`).join("")}</ol>` : ""}
     <div class="row sticky-save"><button id="saveGh" class="primary" ${S.dirty || store.get("mm_draft") ? "" : "disabled"}>☁️ Sačuvaj i objavi</button><button id="discard" class="ghost">Odbaci izmene</button></div>
-    <details class="box"><summary>⚙️ Podešavanja (GitHub, lozinka, izvoz)</summary>
+    <details class="box" id="setBox" ${S.setOpen ? "open" : ""}><summary>⚙️ Podešavanja (admin, igrači i boje, lozinka, izvoz)</summary>
       <div class="form">
         <label>GitHub vlasnik <input id="cOwner" value="${esc(cfg.owner || "misacrni")}" placeholder="misacrni"></label>
         <label>Repozitorijum <input id="cRepo" value="${esc(cfg.repo || "maumau")}" placeholder="maumau"></label>
@@ -460,13 +470,18 @@
         <button id="saveCfg">Sačuvaj podešavanja (prijava kao admin)</button>
         <button id="adminOut" class="ghost">Odjavi admina (obriši token sa ovog uređaja)</button>
         <hr><b>Igrači</b>
-        ${D.players.map((p) => `<label>${dot(p.id)}Ime <input data-ren="${p.id}" value="${esc(p.name)}"></label>`).join("")}
-        <div class="row"><input id="newPlayer" placeholder="Ime novog igrača"><button id="addPlayer" class="ghost">+ Dodaj igrača</button></div>
+        ${D.players.map((p) => `<div class="prow"><label>${dot(p.id)}Ime <input data-ren="${p.id}" value="${esc(p.name)}"></label>${swatches(color(p.id), D.players.filter((x) => x.id !== p.id).map((x) => color(x.id)), p.id)}</div>`).join("")}
+        <div class="prow new"><b>➕ Novi igrač</b><input id="newPlayer" placeholder="Ime novog igrača" value="${esc(S.np?.name || "")}">
+          <p class="small muted">Boja (slobodne boje):</p>${swatches(S.np?.color, D.players.map((x) => color(x.id)), "__new")}
+          <button id="addPlayer">+ Dodaj igrača</button></div>
         <p class="small muted">Novi igrač dobija lozinku ekipe i odmah vidi sve izveštaje. Izmene važe posle „Sačuvaj i objavi“.</p>
         <hr><label>Nova lozinka ekipe <input id="newPw" type="password" placeholder="ostavi prazno ako ne menjaš"></label>
         <button id="exportJson" class="ghost">⬇ Izvoz JSON</button> <button id="exportCsv" class="ghost">⬇ Izvoz CSV</button>
       </div>
     </details>`;
+  }
+  function swatches(cur, taken, attr) {
+    return `<div class="sw">${PALETTE.map(([c, n]) => { const t = taken.includes(c); return `<button type="button" class="swb ${c === cur ? "on" : ""}" ${t ? "disabled" : ""} title="${n}${t ? " (zauzeta)" : ""}" style="--c:${c}" data-k="${attr}" data-c="${c}"></button>`; }).join("")}</div>`;
   }
   function canAdd() { const E = S.edit; return E && E.w && (E.t === "A" || (E.t === "F" && E.l.length === 1) || (E.t === "2" && E.l.length === 2)); }
   bind.admin = () => {
@@ -532,13 +547,22 @@
       } catch (e) { toast("Token ne radi: " + e.message, 5000); }
     };
     $("#saveGh").onclick = publish;
+    $("#setBox").ontoggle = (e) => { S.setOpen = e.target.open; };
     $("#adminOut").onclick = () => { if (!confirm("Obrisati GitHub token sa ovog uređaja?")) return; store.del("mm_admin"); store.del("mm_admin_on"); $("#navAdmin").classList.add("hidden"); S.view = "tabela"; $$("#nav button").forEach((x) => x.classList.toggle("on", x.dataset.v === "tabela")); toast("Admin odjavljen"); render(); };
     $$("[data-ren]").forEach((i) => i.onchange = () => { const p = D.players.find((x) => x.id === i.dataset.ren); if (i.value.trim()) { p.name = i.value.trim(); S.players = D.players; saveDraft(); render(); } });
+    $$(".swb[data-k]").forEach((b) => b.onclick = () => {
+      const k = b.dataset.k, c = b.dataset.c;
+      if (k === "__new") S.np = { name: $("#newPlayer").value, color: c };
+      else { const p = D.players.find((x) => x.id === k); p.color = c; S.players = D.players; saveDraft(); toast(`${p.name}: nova boja`); }
+      render();
+    });
+    $("#newPlayer").oninput = (e) => { S.np = { ...(S.np || {}), name: e.target.value }; };
     $("#addPlayer").onclick = () => {
-      const name = $("#newPlayer").value.trim(); if (!name) return;
+      const name = $("#newPlayer").value.trim(); if (!name) return toast("Upiši ime igrača.");
+      if (!S.np?.color) return toast("Izaberi boju za novog igrača.");
       if (D.players.some((p) => p.name.toLowerCase() === name.toLowerCase())) return toast("Taj igrač već postoji.");
       let id = "P" + (D.players.length + 1); while (D.players.some((p) => p.id === id)) id += "x";
-      D.players.push({ id, name }); S.players = D.players; saveDraft(); toast(`Dodat: ${name}`); render();
+      D.players.push({ id, name, color: S.np.color }); S.players = D.players; S.np = null; saveDraft(); toast(`Dodat: ${name} — tapni „Sačuvaj i objavi“`); render();
     };
     $("#exportJson").onclick = () => download("maumau.json", JSON.stringify(D, null, 1), "application/json");
     $("#exportCsv").onclick = () => {

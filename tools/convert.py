@@ -12,6 +12,7 @@ PLAYERS = [  # kod, ime, slovo u H2H zaglavljima
     ("L", "Lešma", "L"), ("U", "Ugar", "U"),
 ]
 LET = {p[2]: p[0] for p in PLAYERS}
+COLORS = {"S": "#2563eb", "N": "#ca8a04", "M": "#ea580c", "L": "#16a34a", "U": "#7c3aed"}  # Šomi plava, Nikod oker, Mićko narandžasta, Lešma zelena, Ugar ljubičasta
 UNOS_COL = {"L": "Maleš"}  # u listu 'unos' kolona se zove Maleš
 PLY_COLS = {"S": "Šomi PLY", "M": "Mićko PLY", "N": "Nikod PLY", "L": "Lešma PLY", "U": "Ugar PLY"}
 
@@ -138,7 +139,7 @@ def build(unos, h2h):
     # provera: pobede po danu iz 'unos' == broj partija iz H2H
     return {
         "version": 1,
-        "players": [{"id": c, "name": nm} for c, nm, _ in PLAYERS],
+        "players": [{"id": c, "name": nm, "color": COLORS[c]} for c, nm, _ in PLAYERS],
         "days": [days[k] for k in sorted(days)],
         "games": games,
     }, problems
