@@ -401,12 +401,12 @@
         const nh = gs.filter((x) => Stats.hlKind(x.h)).length;
         return `<details class="night"><summary><span><b>${fmtDate(gs[0].date)}</b>${nh ? ` <span class="hl">${gs.filter((x) => Stats.hlKind(x.h)).map((x) => Stats.HL[Stats.hlKind(x.h)].icon).join("")}</span>` : ""} <span class="muted small">${Stats.DANI[gs[0].wd]} · ${esc(gs[0].book)} · bleja ${n}</span></span>
         <span class="score">${gs[0].p.map((id) => `<span class="pill" style="--c:${color(id)}">${esc(pname(id))} ${cnt[id] || 0}</span>`).join("")}</span></summary>
-        <button class="ghost small" data-share="${gs[0].date}">📣 Podeli na WhatsApp</button>
+        <button class="ghost small" data-share="${gs[0].date}">📣 Podeli rezultate</button>
         <ol class="list">${gs.map((x) => `<li><span class="muted small">#${x.bookIdx}</span> ${dot(x.w)}<b>${esc(pname(x.w))}</b> ${desc(x)}${x.h != null && Stats.hlKind(x.h) ? ` <span class="hl">${Stats.hlText(x.h)}</span>` : ""}</li>`).join("")}</ol></details>`;
       }).join("")}`;
   }
   bind.istorija = () => {
-    $$("[data-share]").forEach((b) => b.onclick = () => shareText(blejaSummary(S.data, b.dataset.share)));
+    $$("[data-share]").forEach((b) => b.onclick = () => shareModal(b.dataset.share));
     $("#hq").oninput = (e) => { S.histQ = e.target.value; clearTimeout(S._hq); S._hq = setTimeout(() => { render(); const i = $("#hq"); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, 300); };
     $("#hp").onchange = (e) => { S.histPlayer = e.target.value; render(); };
   };
@@ -647,7 +647,56 @@ Mićko > Ugar | HIO</pre>
     const sc = day.p.map((id) => [nm(id), cnt[id] || 0]).sort((a, b) => b[1] - a[1]).map(([n, c]) => `${n} ${c}`).join(", ");
     const tx = (g) => g.t === "F" ? `${nm(g.w)} > ${nm(g.l[0])}` : g.t === "A" ? `${nm(g.w)} > svi` : `${nm(g.w)} > ${g.l.map(nm).join(", ")}`;
     const hl = (g) => g.h === "HIO" ? " ⛳" : g.h === -101 ? " 💥" : typeof g.h === "number" ? ` ⚡${g.h}` : "";
-    return `🂡 Mau Mau — bleja ${day.n} (${fmtDate(day.date)} · ${day.book} #${day.bookDay})\n🏆 ${sc}\n${gs.map((g, i) => `${i + 1}. ${tx(g)}${hl(g)}`).join("\n")}\n👉 https://misacrni.github.io/maumau/`;
+    const ins = blejaInsights(data, date);
+    return `🂡 Mau Mau — bleja ${day.n} (${fmtDate(day.date)} · ${day.book} #${day.bookDay})\n🏆 ${sc}\n${gs.map((g, i) => `${i + 1}. ${tx(g)}${hl(g)}`).join("\n")}${ins.length ? "\n\n" + ins.join("\n") : ""}\n👉 https://misacrni.github.io/maumau/`;
+  }
+  // Zanimljivosti bleje: nizovi, prekinuti postovi, dueli u finalima, highlight, jubileji
+  function blejaInsights(data, date) {
+    const all = Stats.enrich(data), before = all.filter((g) => g.date < date), upto = all.filter((g) => g.date <= date), now = all.filter((g) => g.date === date);
+    if (!now.length) return [];
+    const nm = (id) => (data.players.find((p) => p.id === id) || { name: id }).name, out = [];
+    const pl = (n, a, b, c) => n % 10 === 1 && n % 100 !== 11 ? a : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? b : c;
+    const part = (n) => `${n} ${pl(n, "partija", "partije", "partija")}`, pob = (n) => `${n} ${pl(n, "pobeda", "pobede", "pobeda")}`;
+    const ids = [...new Set(now.flatMap((g) => g.p))];
+    const wins = {}; now.forEach((g) => wins[g.w] = (wins[g.w] || 0) + 1);
+    // kralj bleje / razvalio
+    const top = Object.entries(wins).sort((a, b) => b[1] - a[1]);
+    if (top.length && top[0][1] === now.length && now.length >= 3) out.push(`🧹 ${nm(top[0][0])} razvalio — dobio svih ${now.length} partija!`);
+    else if (top.length && top[0][1] >= 3 && (!top[1] || top[1][1] < top[0][1])) out.push(`👑 ${nm(top[0][0])} kralj bleje — ${pob(top[0][1])}`);
+    ids.forEach((id) => { if (!wins[id] && now.filter((g) => g.p.includes(id)).length >= 3) out.push(`🙈 ${nm(id)} bez pobede na bleji (${part(now.filter((g) => g.p.includes(id)).length)})`); });
+    // istaknute partije
+    now.forEach((g) => { if (Stats.hlKind(g.h)) out.push(`${Stats.hlText(g.h)} — ${nm(g.w)}`); });
+    // lični nizovi
+    const recBefore = Math.max(0, ...data.players.map((p) => Math.max(0, ...Stats.streaks(before, p.id).win.map((x) => x.len))));
+    ids.forEach((id) => {
+      const b = Stats.streaks(before, id).current, a = Stats.streaks(upto, id).current;
+      const mine = now.filter((g) => g.p.includes(id)), won = mine.some((g) => g.w === id);
+      if (b && b.kind === "D" && b.len >= 5 && won) { const extra = mine.findIndex((g) => g.w === id); out.push(`💧 ${nm(id)} prekinuo post od ${part(b.len + extra)} bez pobede`); }
+      if (b && b.kind === "W" && b.len >= 3 && mine.some((g) => g.w !== id)) out.push(`🛑 ${nm(id)}: prekinut niz od ${pob(b.len + mine.findIndex((g) => g.w !== id))} zaredom`);
+      if (a && a.kind === "W" && a.len >= 3 && won) out.push(`🔥 ${nm(id)}: ${pob(a.len)} zaredom${a.len > recBefore ? " — NOVI REKORD!" : ""}`);
+      if (a && a.kind === "D" && a.len >= 8 && !won) out.push(`🥶 ${nm(id)}: ${part(a.len)} bez pobede`);
+      const wb = before.filter((g) => g.w === id).length, wa = upto.filter((g) => g.w === id).length;
+      for (let m = Math.floor(wb / 50) + 1; m * 50 <= wa; m++) out.push(`🎯 ${nm(id)}: jubilarna ${m * 50}. pobeda!`);
+    });
+    // dueli u finalima
+    const dB = Object.fromEntries(Stats.duelStreaks(before, data.players).map((x) => [x.a + x.b, x]));
+    Stats.duelStreaks(upto, data.players).forEach((x) => {
+      if (!now.some((g) => g.t === "F" && [x.a, x.b].includes(g.w) && [x.a, x.b].includes(g.l[0]))) return;
+      const p = dB[x.a + x.b], loser = x.leader === x.a ? x.b : x.a;
+      if (p && p.cur >= 3 && p.leader !== x.leader) out.push(`✂️ Finale ${nm(x.leader)} vs ${nm(p.leader)}: ${nm(x.leader)} prekinuo niz (${nm(p.leader)} je vodio ${p.cur} zaredom)`);
+      if (x.cur >= 3) out.push(`⚔️ Finale ${nm(x.leader)} vs ${nm(loser)}: ${nm(x.leader)} pobedio ${x.cur}. put zaredom${x.cur > (p ? p.max : 0) ? " (rekord dvoboja)" : ""}`);
+    });
+    return out;
+  }
+  // Prozor za slanje: pregled i izmena poruke, pa push (ntfy) i/ili WhatsApp
+  function shareModal(date, title) {
+    const text = blejaSummary(S.data, date), topic = S.data.settings?.ntfy, admin = !!store.get("mm_admin")?.token;
+    modal(`<h2>${title || "📣 Rezultati bleje"}</h2><p class="small muted">Pregledaj poruku i po želji je izmeni pre slanja.</p>
+      <textarea id="shareText" rows="14">${esc(text)}</textarea>
+      ${topic && admin ? `<button id="sendPush" class="primary">🔔 Pošalji notifikaciju igračima</button>` : ""}
+      <button id="shareWa" class="primary ${topic && admin ? "ghost" : ""}">📣 Pošalji u WhatsApp grupu</button>`);
+    const sp = $("#sendPush"); if (sp) sp.onclick = async () => { sp.disabled = true; try { await ntfy(topic, "Mau Mau - novi rezultati", $("#shareText").value); sp.textContent = "✅ Notifikacija poslata"; } catch (e) { sp.disabled = false; toast("Greška: " + e.message); } };
+    $("#shareWa").onclick = () => shareText($("#shareText").value);
   }
   function shareText(text) {
     if (navigator.share) return navigator.share({ text }).catch(() => {});
@@ -785,13 +834,10 @@ Mićko > Ugar | HIO</pre>
       if (!r.ok) throw new Error((await r.json()).message || r.status);
       setData(S.draft); S.box = box; S.password = pw; if (newPw && store.get("mm_pw")) store.set("mm_pw", newPw);
       store.del("mm_draft"); S.draft = null; S.dirty = false; fillFilters();
-      const sum = blejaSummary(S.data, S.edit?.date);
-      let pushed = "";
-      if (S.data.settings?.ntfy && sum) { try { await ntfy(S.data.settings.ntfy, "Mau Mau - novi rezultati", sum); pushed = "🔔 Igračima je poslato push obaveštenje."; } catch { pushed = "⚠️ Push obaveštenje nije poslato."; } }
+      const pubDate = S.edit?.date;
       render();
-      modal(`<h2>✅ Objavljeno</h2><p>Igrači vide izmene za ~1 minut. ${pushed}</p>
-        ${sum ? `<pre class="fmt">${esc(sum)}</pre><button id="shareWa" class="primary">📣 Pošalji u WhatsApp grupu</button>` : ""}`);
-      const sw = $("#shareWa"); if (sw) sw.onclick = () => shareText(sum);
+      if (pubDate && S.data.days.some((d) => d.date === pubDate)) shareModal(pubDate, "✅ Objavljeno — obavesti ekipu");
+      else toast("✅ Objavljeno. Igrači vide izmene za ~1 min.", 4000);
     } catch (e) { toast("Greška: " + e.message, 5000); btn.disabled = false; btn.textContent = "☁️ Sačuvaj i objavi"; }
   }
 
