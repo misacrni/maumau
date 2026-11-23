@@ -451,7 +451,7 @@
     return `<h2>Unos partija</h2>${adm}
     <div class="cards">
       <div class="card"><b>Bleja ${blejaNo}</b><span>${day ? (E.date >= today() ? "u toku" : "ranija bleja") : "nova"} · ${esc(curBook)} #${bookNo}</span></div>
-      <div class="card"><b>Partija ${partNo}.</b><span>${editing ? "✏️ ispravka · " : "na ovoj bleji · "}<b>${esc(curBook)} #${bookPartNo}</b> · ukupno #${totalNo}</span></div>
+      <div class="card"><b>Partija ${partNo}.</b><span>${editing ? "✏️ ispravka · " : "na ovoj bleji · "}${esc(curBook)} #${bookPartNo} · ukupno #${totalNo}</span></div>
     </div>
     <div class="box">
       <div class="row"><label>Datum <input type="date" id="eDate" value="${E.date}"></label>
