@@ -24,6 +24,8 @@ const Stats = (() => {
         first: i === 0, last: i === list.length - 1,
       }));
     }
+    const perBook = {};
+    out.forEach((g) => { perBook[g.book] = (perBook[g.book] || 0) + 1; g.bookIdx = perBook[g.book]; g.globalIdx = out.indexOf(g) + 1; });
     return out;
   }
 

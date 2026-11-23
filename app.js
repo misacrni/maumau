@@ -395,7 +395,7 @@
         const nh = gs.filter((x) => Stats.hlKind(x.h)).length;
         return `<details class="night"><summary><span><b>${fmtDate(gs[0].date)}</b>${nh ? ` <span class="hl">${gs.filter((x) => Stats.hlKind(x.h)).map((x) => Stats.HL[Stats.hlKind(x.h)].icon).join("")}</span>` : ""} <span class="muted small">${Stats.DANI[gs[0].wd]} · ${esc(gs[0].book)} · bleja ${n}</span></span>
         <span class="score">${gs[0].p.map((id) => `<span class="pill" style="--c:${color(id)}">${esc(pname(id))} ${cnt[id] || 0}</span>`).join("")}</span></summary>
-        <ol class="list">${gs.map((x) => `<li>${dot(x.w)}<b>${esc(pname(x.w))}</b> ${desc(x)}${x.h != null && Stats.hlKind(x.h) ? ` <span class="hl">${Stats.hlText(x.h)}</span>` : ""}</li>`).join("")}</ol></details>`;
+        <ol class="list">${gs.map((x) => `<li><span class="muted small">#${x.bookIdx}</span> ${dot(x.w)}<b>${esc(pname(x.w))}</b> ${desc(x)}${x.h != null && Stats.hlKind(x.h) ? ` <span class="hl">${Stats.hlText(x.h)}</span>` : ""}</li>`).join("")}</ol></details>`;
       }).join("")}`;
   }
   bind.istorija = () => {
@@ -431,13 +431,19 @@
     const blejaNo = day ? day.n : Math.max(0, ...D.days.filter((d) => d.date < E.date).map((d) => d.n)) + 1;
     const bookNo = day ? day.bookDay : D.days.filter((d) => d.book === curBook && d.date < E.date).length + 1;
     const editing = E.editId != null ? dayGames.findIndex((g) => g.id === E.editId) + 1 : 0;
-    const partNo = editing || dayGames.length + 1, totalNo = D.games.length + 1;
+    const partNo = editing || dayGames.length + 1;
+    // Redni broj partije u svesci i ukupno (da se partija nađe u svesci)
+    const bookIdxOf = (gid) => { let n = 0; for (const d of D.days) { if (d.book !== curBook) continue; for (const g of D.games) if (g.day === d.n) { n++; if (g.id === gid) return n; } } return n; };
+    const totalIdxOf = (gid) => D.games.findIndex((g) => g.id === gid) + 1;
+    const beforeInBook = D.games.filter((g) => { const d = D.days.find((x) => x.n === g.day); return d && d.book === curBook && d.date < E.date; }).length;
+    const bookPartNo = editing ? bookIdxOf(E.editId) : beforeInBook + dayGames.length + 1;
+    const totalNo = editing ? totalIdxOf(E.editId) : D.games.filter((g) => { const d = D.days.find((x) => x.n === g.day); return d && d.date <= E.date; }).length + 1;
     const adm = cfg.token ? `<p class="small ok">✅ Prijavljen kao admin (${esc(cfg.owner)}/${esc(cfg.repo)})</p>` : `<p class="small warn">⚠️ Nisi prijavljen kao admin: unos možeš da pripremiš, ali za objavu upiši GitHub token u ⚙️ Podešavanja dole.</p>`;
     const recent = [...D.days].reverse().slice(0, 60);
     return `<h2>Unos partija</h2>${adm}
     <div class="cards">
       <div class="card"><b>Bleja ${blejaNo}</b><span>${day ? (E.date >= today() ? "u toku" : "ranija bleja") : "nova"} · ${esc(curBook)} #${bookNo}</span></div>
-      <div class="card"><b>Partija ${partNo}.</b><span>${editing ? "✏️ ispravka" : `na ovoj bleji · ukupno #${totalNo}`}</span></div>
+      <div class="card"><b>Partija ${partNo}.</b><span>${editing ? "✏️ ispravka · " : "na ovoj bleji · "}<b>${esc(curBook)} #${bookPartNo}</b> · ukupno #${totalNo}</span></div>
     </div>
     <div class="box">
       <div class="row"><label>Datum <input type="date" id="eDate" value="${E.date}"></label>
@@ -474,7 +480,7 @@
     ${dayGames.length ? `<h3>Bleja ${blejaNo} · ${fmtDate(E.date)} · ${dayGames.length} ${dayGames.length === 1 ? "partija" : dayGames.length < 5 ? "partije" : "partija"}</h3>
       <p class="small muted">Dodirni ✏️ da ispraviš partiju, ✕ da je obrišeš.</p>
       <ol class="list glist">${dayGames.map((x) => `<li class="${x.id === E.editId ? "on" : ""}">${dot(x.w)}<b>${esc(pname(x.w))}</b> ${gdesc(x)} ${x.h != null ? Stats.hlText(x.h) : ""}
-        <span class="muted small">(${(x.p || day.p).map(pname).join(", ")})</span>
+        <span class="muted small">(${(x.p || day.p).map(pname).join(", ")}) · ${esc(day.book)} #${bookIdxOf(x.id)}</span>
         <span class="acts"><button class="ghost small" data-ed="${x.id}">✏️</button><button class="ghost small" data-del="${x.id}">✕</button></span></li>`).join("")}</ol>` : ""}
     <details class="box" id="impBox" ${S.impOpen ? "open" : ""}><summary>📋 Unos iz teksta / sa slike sveske</summary>
       <p class="small muted">Nalepi partije u ovom obliku (jedna partija u redu). Ovaj tekst može da napravi AI agent iz slike stranice sveske.</p>
