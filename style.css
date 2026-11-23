@@ -113,3 +113,6 @@ html, body { overflow-x: hidden; }
 .grid.rules th { text-align: left; vertical-align: top; width: 32%; white-space: normal; } .grid.rules td { text-align: left; white-space: normal; }
 .grid td small { font-size: 11px; }
 .chips.scroll { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; } .chips.scroll .chip { flex: none; }
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable[data-dir=desc]::after { content: " ▼"; font-size: 9px; } th.sortable[data-dir=asc]::after { content: " ▲"; font-size: 9px; }
+.ok { color: var(--accent2); } .warn { color: #b45309; }

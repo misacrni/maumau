@@ -57,9 +57,11 @@
 
   function info() {
     const r = S.data.rules;
+    setTimeout(() => { const lo = $("#logoutBtn"); if (lo) lo.onclick = logout; }, 0);
     setTimeout(() => { const b = $("#enableAdmin"); if (b) b.onclick = () => { showAdmin(); $("#modal").classList.add("hidden"); S.view = "admin"; $$("#nav button").forEach((x) => x.classList.toggle("on", x.dataset.v === "admin")); render(); }; }, 0);
     modal(`<h2>ℹ️ O aplikaciji</h2>
-      <div class="box"><b>✏️ Unos rezultata (admin)</b><p class="small muted">Uključuje tab Unos na ovom uređaju. Za objavu je potreban GitHub token koji ima samo admin, pa igrači ne mogu ništa da promene.</p><button id="enableAdmin">Uključi tab Unos</button></div>
+      <div class="box"><b>✏️ Unos rezultata (admin)</b><p class="small muted">${store.get("mm_admin")?.token ? "✅ Ovaj uređaj je prijavljen kao admin (GitHub token je sačuvan)." : "Uključuje tab Unos na ovom uređaju. Za objavu je potreban GitHub token koji ima samo admin, pa igrači ne mogu ništa da promene."}</p><button id="enableAdmin">${store.get("mm_admin_on") ? "Otvori Unos" : "Uključi tab Unos"}</button></div>
+      <div class="box"><b>🚪 Odjava</b><p class="small muted">Briše sa ovog uređaja zapamćenu lozinku ekipe i, ako postoji, admin token i nesačuvan unos.</p><button id="logoutBtn" class="ghost">Odjavi se</button></div>
       <p>Statistika naše Mau Mau bleje od 2017. Svi podaci su iz sveski i Excela, a od sada se unose ovde. Gore biraš godinu ili svesku, i svi prikazi se računaju samo za to.</p>
       <ul class="list">
         <li><b>🏆 Tabela</b> – efikasnost (pobede / odigrane partije), finala, pobede u prvoj i poslednjoj partiji, ⚡ clutch, 👑 bleje, završnica (W/L ukupno) i grafikon pobeda kroz vreme. Dodirni igrača za profil.</li>
@@ -72,6 +74,11 @@
       ${r ? `<h2>${esc(r.title)}</h2><p class="muted">${esc(r.sub)}</p>${r.sections.map((sc) => `<details class="box"><summary>${esc(sc.h)}</summary><table class="grid rules"><tbody>${sc.items.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("")}</tbody></table></details>`).join("")}` : ""}`);
   }
   $("#infoBtn").onclick = info;
+  function logout() {
+    if (store.get("mm_draft") && !confirm("Imaš nesačuvan unos. Odjavom se briše. Nastavi?")) return;
+    ["mm_pw", "mm_admin", "mm_admin_on", "mm_draft"].forEach(store.del);
+    location.hash = ""; location.reload();
+  }
   function showAdmin() { store.set("mm_admin_on", true); $("#navAdmin").classList.remove("hidden"); }
   window.addEventListener("hashchange", () => { if (location.hash === "#admin" && S.data) showAdmin(); });
 
@@ -96,7 +103,39 @@
   $$("#nav button").forEach((b) => b.onclick = () => { S.view = b.dataset.v; if (S.view !== "admin") S.players = S.data.players; $$("#nav button").forEach((x) => x.classList.toggle("on", x === b)); render(); window.scrollTo(0, 0); });
   $("#modalClose").onclick = () => $("#modal").classList.add("hidden");
   $("#modal").onclick = (e) => { if (e.target.id === "modal") $("#modal").classList.add("hidden"); };
-  function modal(html) { $("#modalBody").innerHTML = html; $("#modal").classList.remove("hidden"); }
+  function modal(html) { $("#modalBody").innerHTML = html; $("#modal").classList.remove("hidden"); makeSortable($("#modalBody")); }
+
+  // Sortiranje: dodir na naslov kolone (ponovni dodir obrće redosled)
+  function cellVal(td) {
+    const t = (td?.textContent || "").trim().replace(/\s+/g, " ");
+    const m = t.replace(",", ".").match(/-?\d+(\.\d+)?/);
+    const d = t.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+    if (d) return +d[3] * 1e4 + +d[2] * 100 + +d[1];
+    return m && /^[\s🔥⚡💥⛳-]*-?\d/.test(t) ? parseFloat(m[0]) : t.toLowerCase();
+  }
+  function makeSortable(root) {
+    $$("table.grid", root).forEach((tbl) => {
+      if (!tbl.tHead || tbl.querySelector("tr.head")) return;
+      const ths = [...tbl.tHead.rows[0].cells];
+      ths.forEach((th, ci) => {
+        th.classList.add("sortable");
+        th.onclick = () => {
+          const body = tbl.tBodies[0], rows = [...body.rows], fixed = rows.filter((r) => r.classList.contains("tot")), data = rows.filter((r) => !r.classList.contains("tot"));
+          const prev = th.dataset.dir;
+          const isNum = typeof cellVal(data[0]?.cells[ci]) === "number";
+          const dir = prev ? (prev === "desc" ? "asc" : "desc") : (isNum ? "desc" : "asc");
+          ths.forEach((x) => { delete x.dataset.dir; });
+          th.dataset.dir = dir;
+          data.sort((a, b) => {
+            const x = cellVal(a.cells[ci]), y = cellVal(b.cells[ci]);
+            const c = typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), "sr");
+            return dir === "asc" ? c : -c;
+          });
+          [...data, ...fixed].forEach((r) => body.appendChild(r));
+        };
+      });
+    });
+  }
 
   const G = () => Stats.filter(S.games, S.f);
   const filterLabel = () => [S.f.year, S.f.book].filter(Boolean).join(" · ") || "Sve od 2017.";
@@ -106,6 +145,7 @@
     const v = { tabela: vTabela, h2h: vH2H, pivot: vPivot, nizovi: vNizovi, istorija: vIstorija, admin: vAdmin }[S.view];
     $("#view").innerHTML = v();
     bind[S.view] && bind[S.view]();
+    makeSortable($("#view"));
   }
   const bind = {};
 
@@ -374,7 +414,8 @@
     const blejaNo = day ? day.n : Math.max(0, ...D.days.map((d) => d.n)) + 1;
     const bookNo = day ? day.bookDay : D.days.filter((d) => d.book === curBook).length + 1;
     const partNo = dayGames.length + 1, totalNo = D.games.length + 1;
-    return `<h2>Unos partija</h2>
+    const adm = cfg.token ? `<p class="small ok">✅ Prijavljen kao admin (${esc(cfg.owner)}/${esc(cfg.repo)})</p>` : `<p class="small warn">⚠️ Nisi prijavljen kao admin: unos možeš da pripremiš, ali za objavu upiši GitHub token u ⚙️ Podešavanja dole.</p>`;
+    return `<h2>Unos partija</h2>${adm}
     <div class="cards">
       <div class="card"><b>Bleja ${blejaNo}</b><span>${day ? "u toku" : "nova"} · ${esc(curBook)} #${bookNo}</span></div>
       <div class="card"><b>Partija ${partNo}.</b><span>na ovoj bleji · ukupno #${totalNo}</span></div>
@@ -412,11 +453,12 @@
     <div class="row sticky-save"><button id="saveGh" class="primary" ${S.dirty || store.get("mm_draft") ? "" : "disabled"}>☁️ Sačuvaj i objavi</button><button id="discard" class="ghost">Odbaci izmene</button></div>
     <details class="box"><summary>⚙️ Podešavanja (GitHub, lozinka, izvoz)</summary>
       <div class="form">
-        <label>GitHub vlasnik <input id="cOwner" value="${esc(cfg.owner)}" placeholder="misacrni"></label>
-        <label>Repozitorijum <input id="cRepo" value="${esc(cfg.repo)}" placeholder="maumau"></label>
+        <label>GitHub vlasnik <input id="cOwner" value="${esc(cfg.owner || "misacrni")}" placeholder="misacrni"></label>
+        <label>Repozitorijum <input id="cRepo" value="${esc(cfg.repo || "maumau")}" placeholder="maumau"></label>
         <label>Grana <input id="cBranch" value="${esc(cfg.branch || "main")}"></label>
         <label>Token (fine-grained, samo Contents: write za ovaj repo) <input id="cToken" type="password" value="${esc(cfg.token)}"></label>
-        <button id="saveCfg">Sačuvaj podešavanja</button>
+        <button id="saveCfg">Sačuvaj podešavanja (prijava kao admin)</button>
+        <button id="adminOut" class="ghost">Odjavi admina (obriši token sa ovog uređaja)</button>
         <hr><b>Igrači</b>
         ${D.players.map((p) => `<label>${dot(p.id)}Ime <input data-ren="${p.id}" value="${esc(p.name)}"></label>`).join("")}
         <div class="row"><input id="newPlayer" placeholder="Ime novog igrača"><button id="addPlayer" class="ghost">+ Dodaj igrača</button></div>
@@ -478,8 +520,19 @@
     };
     $$("[data-del]").forEach((b) => b.onclick = () => { if (!confirm("Obriši ovu partiju?")) return; D.games = D.games.filter((g) => g.id !== +b.dataset.del); saveDraft(); render(); });
     $("#discard").onclick = () => { if (!confirm("Odbaciti sve nesačuvane izmene?")) return; store.del("mm_draft"); S.draft = null; S.dirty = false; S.edit = null; S.players = S.data.players; render(); };
-    $("#saveCfg").onclick = () => { store.set("mm_admin", { owner: $("#cOwner").value.trim(), repo: $("#cRepo").value.trim(), branch: $("#cBranch").value.trim() || "main", token: $("#cToken").value.trim() }); toast("Podešavanja sačuvana na ovom uređaju"); };
+    $("#saveCfg").onclick = async () => {
+      const c = { owner: $("#cOwner").value.trim() || "misacrni", repo: $("#cRepo").value.trim() || "maumau", branch: $("#cBranch").value.trim() || "main", token: $("#cToken").value.trim() };
+      if (!c.token) return toast("Upiši token.");
+      try {
+        const r = await fetch(`https://api.github.com/repos/${c.owner}/${c.repo}`, { headers: { Authorization: `Bearer ${c.token}`, Accept: "application/vnd.github+json" } });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.message || r.status);
+        if (!j.permissions?.push) throw new Error("token nema pravo upisa u repo");
+        store.set("mm_admin", c); toast("✅ Prijavljen kao admin"); render();
+      } catch (e) { toast("Token ne radi: " + e.message, 5000); }
+    };
     $("#saveGh").onclick = publish;
+    $("#adminOut").onclick = () => { if (!confirm("Obrisati GitHub token sa ovog uređaja?")) return; store.del("mm_admin"); store.del("mm_admin_on"); $("#navAdmin").classList.add("hidden"); S.view = "tabela"; $$("#nav button").forEach((x) => x.classList.toggle("on", x.dataset.v === "tabela")); toast("Admin odjavljen"); render(); };
     $$("[data-ren]").forEach((i) => i.onchange = () => { const p = D.players.find((x) => x.id === i.dataset.ren); if (i.value.trim()) { p.name = i.value.trim(); S.players = D.players; saveDraft(); render(); } });
     $("#addPlayer").onclick = () => {
       const name = $("#newPlayer").value.trim(); if (!name) return;
