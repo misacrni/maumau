@@ -57,7 +57,9 @@
 
   function info() {
     const r = S.data.rules;
+    setTimeout(() => { const b = $("#enableAdmin"); if (b) b.onclick = () => { showAdmin(); $("#modal").classList.add("hidden"); S.view = "admin"; $$("#nav button").forEach((x) => x.classList.toggle("on", x.dataset.v === "admin")); render(); }; }, 0);
     modal(`<h2>ℹ️ O aplikaciji</h2>
+      <div class="box"><b>✏️ Unos rezultata (admin)</b><p class="small muted">Uključuje tab Unos na ovom uređaju. Za objavu je potreban GitHub token koji ima samo admin, pa igrači ne mogu ništa da promene.</p><button id="enableAdmin">Uključi tab Unos</button></div>
       <p>Statistika naše Mau Mau bleje od 2017. Svi podaci su iz sveski i Excela, a od sada se unose ovde. Gore biraš godinu ili svesku, i svi prikazi se računaju samo za to.</p>
       <ul class="list">
         <li><b>🏆 Tabela</b> – efikasnost (pobede / odigrane partije), finala, pobede u prvoj i poslednjoj partiji, ⚡ clutch, 👑 bleje, završnica (W/L ukupno) i grafikon pobeda kroz vreme. Dodirni igrača za profil.</li>
@@ -70,10 +72,12 @@
       ${r ? `<h2>${esc(r.title)}</h2><p class="muted">${esc(r.sub)}</p>${r.sections.map((sc) => `<details class="box"><summary>${esc(sc.h)}</summary><table class="grid rules"><tbody>${sc.items.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("")}</tbody></table></details>`).join("")}` : ""}`);
   }
   $("#infoBtn").onclick = info;
+  function showAdmin() { store.set("mm_admin_on", true); $("#navAdmin").classList.remove("hidden"); }
+  window.addEventListener("hashchange", () => { if (location.hash === "#admin" && S.data) showAdmin(); });
 
   function start() {
     ["#top", "#view", "#nav"].forEach((s) => $(s).classList.remove("hidden"));
-    if (store.get("mm_admin") || location.hash === "#admin") $("#navAdmin").classList.remove("hidden");
+    if (store.get("mm_admin") || store.get("mm_admin_on") || location.hash === "#admin") showAdmin();
     fillFilters();
     const last = S.data.days[S.data.days.length - 1];
     $("#lastUpd").textContent = last ? "· poslednja bleja " + fmtDate(last.date) : "";
@@ -123,7 +127,7 @@
     <p class="muted small">${filterLabel()} · ${fmtDate(first.date)} – ${fmtDate(last.date)}</p>
     <h2>Tabela</h2>
     <div class="tw"><table class="grid sticky">
-      <thead><tr><th>#</th><th>Igrač</th><th title="Odigrane partije">Odigr.</th><th>Pob.</th><th>Efik.</th><th title="Učešće u finalu 1 na 1">Finala</th><th title="% partija u kojima je bio u finalu">U fin.%</th><th title="Dobijena – izgubljena finala">F W-L</th><th title="% dobijenih finala 1 na 1">% 1:1</th><th title="Pobeda protiv 2 igrača">vs 2</th><th title="Pobeda protiv svih">vs svi</th><th title="Pobede u prvoj partiji bleje">Prva</th><th title="Pobede u poslednjoj partiji bleje">Posl.</th><th title="Pobede posle 190–200 poena u toku partije">⚡ Clutch</th><th title="Pobeda prekidom na −101 / Hole in one">💥/⛳</th><th title="Bleje na kojima je imao najviše pobeda (ili delio prvo mesto)">👑 Bleje</th><th>Bleje</th></tr></thead>
+      <thead><tr><th>#</th><th>Igrač</th><th title="Odigrane partije">Odigr.</th><th>Pob.</th><th>Efik.</th><th title="Učešće u finalu 1 na 1">Finala</th><th title="% partija u kojima je bio u finalu">U fin.%</th><th title="Dobijena – izgubljena finala">F W-L</th><th title="% dobijenih finala 1 na 1">% 1:1</th><th title="Pobeda protiv 2 igrača">vs 2</th><th title="Pobeda protiv svih">vs svi</th><th title="Pobede u prvoj partiji bleje">Prva</th><th title="Pobede u poslednjoj partiji bleje">Posl.</th><th title="Pobede posle 190–200 poena u toku partije">⚡ Clutch</th><th title="Pobeda prekidom na −101 / Hole in one">💥/⛳</th><th title="Bleje na kojima je imao najviše pobeda (ili delio prvo mesto)">👑 Bleje</th><th title="Na koliko bleja je bio">Bio na bleji</th></tr></thead>
       <tbody>${t.map((s, i) => `<tr data-p="${s.id}" class="click">
         <td>${i + 1}</td><td class="nm">${dot(s.id)}${esc(s.name)}</td><td>${s.played}</td><td><b>${s.wins}</b></td>
         <td><span class="bar" style="--w:${s.eff * 100 / Math.max(...t.map((x) => x.eff))}%;--c:${color(s.id)}">${pct(s.eff, 1)}</span></td>
@@ -377,7 +381,10 @@
     </div>
     <div class="box">
       <div class="row"><label>Datum <input type="date" id="eDate" value="${E.date}"></label>
-      <label>Sveska <select id="eBook">${books.map((b) => `<option ${b === (day?.book || E.book) ? "selected" : ""}>${esc(b)}</option>`).join("")}<option value="__new">+ Nova sveska…</option></select></label></div>
+      <label>Sveska <select id="eBook">${[...new Set([...books, E.book].filter(Boolean))].map((b) => `<option ${b === (day?.book || E.book) ? "selected" : ""}>${esc(b)}</option>`).join("")}</select></label></div>
+      ${E.newBook ? `<div class="row"><label>Naziv nove sveske <input id="nbName" value="${esc(E.newBook)}"></label><button id="nbOk">Otvori svesku</button><button id="nbX" class="ghost">Otkaži</button></div>
+        <p class="small muted">Nova sveska počinje od ove bleje (bleja #1 u svesci). Sve statistike se mogu filtrirati po svesci.</p>`
+        : `<button id="nbBtn" class="ghost small">📓 Nova sveska</button>`}
       <p class="small muted">Ko je na bleji:</p>
       <div class="chips">${S.players.map((p) => chip(p.id, present.includes(p.id), "data-pp")).join("")}</div>
     </div>
@@ -422,10 +429,19 @@
   function canAdd() { const E = S.edit; return E && E.w && (E.t === "A" || (E.t === "F" && E.l.length === 1) || (E.t === "2" && E.l.length === 2)); }
   bind.admin = () => {
     const E = S.edit, D = S.draft;
+    const books = [...new Set(D.days.map((d) => d.book))];
     $("#eDate").onchange = (e) => { E.date = e.target.value; E.w = null; E.l = []; render(); };
+    const nb = $("#nbBtn"); if (nb) nb.onclick = () => { E.newBook = (books.length + 1) + " "; render(); const i = $("#nbName"); i.focus(); i.setSelectionRange(i.value.length, i.value.length); };
+    const nx = $("#nbX"); if (nx) nx.onclick = () => { E.newBook = null; render(); };
+    const nok = $("#nbOk"); if (nok) nok.onclick = () => {
+      const name = $("#nbName").value.trim();
+      if (!name || /^\d+$/.test(name)) return toast("Upiši naziv, npr. „7 Black“.");
+      if (books.includes(name)) return toast("Ta sveska već postoji.");
+      E.newBook = null; E.book = name; const day = D.days.find((d) => d.date === E.date); if (day) { day.book = name; day.bookDay = 1; saveDraft(); }
+      toast("Nova sveska: " + name); render();
+    };
     $("#eBook").onchange = (e) => {
       let b = e.target.value;
-      if (b === "__new") { b = prompt("Naziv nove sveske (npr. 7 Black):"); if (!b) return render(); }
       E.book = b; const day = D.days.find((d) => d.date === E.date); if (day) { day.book = b; saveDraft(); } render();
     };
     $$("[data-pp]").forEach((b) => b.onclick = () => {
