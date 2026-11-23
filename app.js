@@ -710,8 +710,16 @@ Mićko > Ugar | HIO</pre>
       const box = await MMCrypto.encrypt(S.draft, pw);
       const api = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${DATA_ENC}`;
       const H = { Authorization: `Bearer ${cfg.token}`, Accept: "application/vnd.github+json" };
-      const cur = await fetch(`${api}?ref=${cfg.branch}`, { headers: H });
-      const sha = cur.ok ? (await cur.json()).sha : undefined;
+      const cur = await fetch(`${api}?ref=${cfg.branch}&t=${Date.now()}`, { headers: H, cache: "no-store" });
+      let sha;
+      if (cur.ok) {
+        const j = await cur.json(); sha = j.sha;
+        // Zaštita kad unosi više admina: ako je neko drugi u međuvremenu objavio, ne pregazi njegove izmene
+        try {
+          const remote = JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g, "")))));
+          if (S.box && remote.ct && remote.ct.slice(0, 40) !== baseId()) throw new Error("CONFLICT");
+        } catch (e) { if (e.message === "CONFLICT") throw new Error("neko je u međuvremenu objavio nove rezultate. Zapamti svoj unos, tapni „Odbaci izmene“, osveži aplikaciju i unesi ponovo."); }
+      }
       const body = { message: `Unos: ${S.edit?.date || ""}`, branch: cfg.branch, content: MMCrypto.b64(new TextEncoder().encode(JSON.stringify(box))), sha };
       const r = await fetch(api, { method: "PUT", headers: H, body: JSON.stringify(body) });
       if (!r.ok) throw new Error((await r.json()).message || r.status);
