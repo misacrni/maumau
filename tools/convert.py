@@ -168,8 +168,13 @@ def check(data, unos):
 DATE_FIX = {92: "2019-03-20"}   # kolo 92: greška u mesecu
 MERGE_DAYS = [(318, 319)]       # isto veče uneto kao dva kola (igrači menjani u toku večeri)
 BOOK_FIX = {"1 Yelow": "1 Yellow"}
+# "Protiv svih" sa 5 igrača koje su u stvari bile protiv 3 (provereno u sveskama 23.11.2026)
+GAME_FIX = {898: ("3", ["M", "N", "L"]), 1068: ("3", ["N", "L", "U"])}
 
 def apply_fixes(data):
+    for g in data["games"]:
+        if g["id"] in GAME_FIX:
+            g["t"], g["l"] = GAME_FIX[g["id"]][0], list(GAME_FIX[g["id"]][1])
     days = {d["n"]: d for d in data["days"]}
     for n, dte in DATE_FIX.items():
         if n in days: days[n]["date"] = dte
