@@ -118,8 +118,8 @@ Vidimo se na bleji! 🃏`;
     $("#shCopy").onclick = async () => { try { await navigator.clipboard.writeText(text()); toast("Kopirano"); } catch { toast("Kopiranje nije uspelo"); } };
   }
   $("#shareBtn").onclick = shareApp;
-  function logout() {
-    if (store.get("mm_draft") && !confirm("Imaš nesačuvan unos. Odjavom se briše. Nastavi?")) return;
+  async function logout() {
+    if (store.get("mm_draft") && !(await ask("Imaš nesačuvan unos. Odjavom se briše. Nastavi?", "Odjavi se"))) return;
     ["mm_pw", "mm_admin", "mm_admin_on", "mm_draft"].forEach(store.del);
     location.hash = ""; location.reload();
   }
@@ -145,8 +145,22 @@ Vidimo se na bleji! 🃏`;
   $("#fBook").onchange = (e) => { S.f.book = e.target.value; render(); };
   $("#fReset").onclick = () => { S.f = { year: "", book: "" }; fillFilters(); render(); };
   $$("#nav button").forEach((b) => b.onclick = () => { S.view = b.dataset.v; if (S.view !== "admin") S.players = S.data.players; $$("#nav button").forEach((x) => x.classList.toggle("on", x === b)); render(); window.scrollTo(0, 0); });
-  $("#modalClose").onclick = () => $("#modal").classList.add("hidden");
+  $("#modalClose").onclick = () => closeModal();
   $("#modal").onclick = (e) => { if (e.target.id === "modal") $("#modal").classList.add("hidden"); };
+  // Potvrda u samoj aplikaciji (sistemski confirm() pregledač ume da blokira)
+  function ask(msg, okLabel = "Da", input = null) {
+    return new Promise((res) => {
+      $("#modalBody").innerHTML = `<h2>❓ Potvrda</h2><p style="white-space:pre-line">${esc(msg)}</p>${input != null ? `<input id="askIn" value="${esc(input)}" style="width:100%">` : ""}
+        <div class="row"><button id="askOk" class="primary">${esc(okLabel)}</button><button id="askNo" class="primary ghost">Otkaži</button></div>`;
+      $("#modal").classList.remove("hidden");
+      const done = (v) => { $("#modal").classList.add("hidden"); $("#modalClose").onclick = closeModal; res(v); };
+      $("#askOk").onclick = () => done(input != null ? $("#askIn").value : true);
+      $("#askNo").onclick = () => done(input != null ? null : false);
+      $("#modalClose").onclick = () => done(input != null ? null : false);
+      const i = $("#askIn"); if (i) { i.focus(); i.select(); }
+    });
+  }
+  function closeModal() { $("#modal").classList.add("hidden"); }
   function modal(html) { $("#modalBody").innerHTML = html; $("#modal").classList.remove("hidden"); makeSortable($("#modalBody")); }
 
   // Sortiranje: dodir na naslov kolone (ponovni dodir obrće redosled)
@@ -750,9 +764,9 @@ Mićko > Ugar | HIO</pre>
     const books = [...new Set(D.days.map((d) => d.book))];
     const reset = () => { E.w = null; E.l = []; E.t = "F"; E.h = null; E.gp = null; E.editId = null; };
     $("#eDate").onchange = (e) => { E.date = e.target.value; reset(); render(); };
-    const cd = $("#chDate"); if (cd) cd.onclick = () => {
+    const cd = $("#chDate"); if (cd) cd.onclick = async () => {
       const day = D.days.find((d) => d.date === E.date); if (!day) return;
-      const v = prompt(`Novi datum za blejo ${day.n} (sada ${fmtDate(day.date)}), u obliku dd.mm.gggg:`, fmtDate(day.date).replace(/\.$/, ""));
+      const v = await ask(`Novi datum za bleju ${day.n} (sada ${fmtDate(day.date)}), u obliku dd.mm.gggg:`, "Promeni datum", fmtDate(day.date).replace(/\.$/, ""));
       if (!v) return;
       const m = v.trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})\.?$/); if (!m) return toast("Datum upiši kao dd.mm.gggg");
       const nd = `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
@@ -796,7 +810,7 @@ Mićko > Ugar | HIO</pre>
       Object.assign(E, { editId: g.id, gp: [...(g.p || day.p)], w: g.w, t: g.t === "F" ? "F" : "M", l: [...g.l], h: g.h ?? null });
       render(); window.scrollTo(0, $(".box.editing")?.offsetTop - 70 || 0);
     });
-    $$("[data-del]").forEach((b) => b.onclick = () => { if (!confirm("Obriši ovu partiju?")) return; const id = +b.dataset.del; D.games.forEach((g) => { const d = D.days.find((x) => x.n === g.day); if (!g.p && d) g.p = [...d.p]; }); D.games = D.games.filter((g) => g.id !== id); if (E.editId === id) reset(); normalize(D); saveDraft(); render(); });
+    $$("[data-del]").forEach((b) => b.onclick = async () => { if (!(await ask("Obriši ovu partiju?", "Obriši"))) return; const id = +b.dataset.del; D.games.forEach((g) => { const d = D.days.find((x) => x.n === g.day); if (!g.p && d) g.p = [...d.p]; }); D.games = D.games.filter((g) => g.id !== id); if (E.editId === id) reset(); normalize(D); saveDraft(); render(); });
     $("#impBox").ontoggle = (e) => { S.impOpen = e.target.open; };
     $("#impText").oninput = (e) => { S.impText = e.target.value; S.imp = null; };
     $("#impParse").onclick = () => { S.impText = $("#impText").value; S.imp = parseImport(S.impText, D); render(); };
@@ -804,7 +818,7 @@ Mićko > Ugar | HIO</pre>
       const its = S.imp.items; its.forEach((x) => putGame(D, x, null));
       saveDraft(); E.date = its[its.length - 1].date; reset(); S.imp = null; S.impText = ""; toast(`Dodato ${its.length} partija — proveri pa „Sačuvaj i objavi“`); render();
     };
-    $("#discard").onclick = () => { if (!confirm("Odbaciti sve nesačuvane izmene?")) return; store.del("mm_draft"); S.draft = null; S.dirty = false; S.edit = null; S.players = S.data.players; render(); };
+    $("#discard").onclick = async () => { if (!(await ask("Odbaciti sve nesačuvane izmene? Vraća se poslednja objavljena verzija.", "Odbaci"))) return; store.del("mm_draft"); S.draft = null; S.dirty = false; S.edit = null; S.imp = null; S.impText = ""; S.players = S.data.players; toast("Izmene odbačene"); render(); };
     $("#saveCfg").onclick = async () => {
       const c = { owner: $("#cOwner").value.trim() || "misacrni", repo: $("#cRepo").value.trim() || "maumau", branch: $("#cBranch").value.trim() || "main", token: $("#cToken").value.trim() };
       if (!c.token) return toast("Upiši token.");
@@ -817,10 +831,10 @@ Mićko > Ugar | HIO</pre>
       } catch (e) { toast("Token ne radi: " + e.message, 5000); }
     };
     $("#saveGh").onclick = publish;
-    $("#pwChange").onclick = () => {
+    $("#pwChange").onclick = async () => {
       const v = $("#newPw").value.trim();
       if (v.length < 8) return toast("Lozinka treba da ima bar 8 znakova.");
-      if (!confirm(`Nova lozinka ekipe: „${v}“\nZapamti je ili zapiši — bez nje se podaci ne mogu otvoriti. Nastavi?`)) return;
+      if (!(await ask(`Nova lozinka ekipe: „${v}“\nZapamti je ili zapiši — bez nje se podaci ne mogu otvoriti.`, "Promeni lozinku"))) return;
       S.dirty = true; publish();
     };
     $$("[data-pf]").forEach((i) => i.onchange = () => { const p = D.players.find((x) => x.id === i.dataset.pid); const v = i.value.trim(); if (v) p[i.dataset.pf] = v; else delete p[i.dataset.pf]; saveDraft(); toast("Sačuvano u unosu — objavi da vide svi"); });
@@ -833,7 +847,7 @@ Mićko > Ugar | HIO</pre>
     $("#ntfyGen").onclick = () => { D.settings = D.settings || {}; D.settings.ntfy = "maumau-" + Math.random().toString(36).slice(2, 10); saveDraft(); render(); };
     $("#ntfyTest").onclick = async () => { const t = D.settings?.ntfy; if (!t) return toast("Prvo upiši ili generiši temu."); try { await ntfy(t, "Probna poruka", "Ako ovo vidiš, obaveštenja rade 🎉"); toast("Poslato"); } catch (e) { toast("Greška: " + e.message); } };
     $("#setBox").ontoggle = (e) => { S.setOpen = e.target.open; };
-    $("#adminOut").onclick = () => { if (!confirm("Obrisati GitHub token sa ovog uređaja?")) return; store.del("mm_admin"); store.del("mm_admin_on"); $("#navAdmin").classList.add("hidden"); S.view = "tabela"; $$("#nav button").forEach((x) => x.classList.toggle("on", x.dataset.v === "tabela")); toast("Admin odjavljen"); render(); };
+    $("#adminOut").onclick = async () => { if (!(await ask("Obrisati GitHub token sa ovog uređaja?", "Obriši token"))) return; store.del("mm_admin"); store.del("mm_admin_on"); $("#navAdmin").classList.add("hidden"); S.view = "tabela"; $$("#nav button").forEach((x) => x.classList.toggle("on", x.dataset.v === "tabela")); toast("Admin odjavljen"); render(); };
     $$("[data-ren]").forEach((i) => i.onchange = () => { const p = D.players.find((x) => x.id === i.dataset.ren); if (i.value.trim()) { p.name = i.value.trim(); S.players = D.players; saveDraft(); render(); } });
     $$(".swb[data-k]").forEach((b) => b.onclick = () => {
       const k = b.dataset.k, c = b.dataset.c;
