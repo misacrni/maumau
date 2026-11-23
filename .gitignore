@@ -1,0 +1,4 @@
+# Nikad ne objavljivati nešifrovane podatke ni Excel
+data/data.json
+*.xlsx
+.DS_Store

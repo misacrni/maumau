@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="sr-Latn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14532d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mau Mau">
+<title>Mau Mau — Bleja od 2017.</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <section id="login" class="login hidden">
+    <div class="login-card">
+      <div class="logo">🂡</div>
+      <h1>Mau Mau</h1>
+      <p class="muted">Bleja od 2017.</p>
+      <form id="loginForm">
+        <input id="pw" type="password" placeholder="Lozinka ekipe" autocomplete="current-password" required>
+        <label class="chk"><input type="checkbox" id="remember" checked> Zapamti na ovom telefonu</label>
+        <button type="submit">Uđi</button>
+        <p id="loginErr" class="err"></p>
+      </form>
+    </div>
+  </section>
+
+  <header id="top" class="hidden">
+    <div class="title">🂡 Mau Mau <span id="lastUpd" class="muted small"></span></div>
+    <div class="filters">
+      <select id="fYear"></select>
+      <select id="fBook"></select>
+      <button id="fReset" class="ghost small" title="Poništi filtere">✕</button>
+    </div>
+  </header>
+
+  <main id="view" class="hidden"></main>
+
+  <nav id="nav" class="hidden">
+    <button data-v="tabela" class="on"><span>🏆</span>Tabela</button>
+    <button data-v="h2h"><span>⚔️</span>H2H</button>
+    <button data-v="pivot"><span>📊</span>Pregledi</button>
+    <button data-v="nizovi"><span>🔥</span>Nizovi</button>
+    <button data-v="istorija"><span>📖</span>Istorija</button>
+    <button data-v="admin" id="navAdmin" class="hidden"><span>✏️</span>Unos</button>
+  </nav>
+  <div id="modal" class="modal hidden"><div class="sheet"><button class="close" id="modalClose">✕</button><div id="modalBody"></div></div></div>
+  <div id="toast" class="toast hidden"></div>
+</div>
+<script src="crypto.js"></script>
+<script src="stats.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
