@@ -80,7 +80,8 @@
         <li><b>⚔️ H2H</b> – 🔥 nizovi u finalima (ko kome vezuje i koliko), matrica finala 1 na 1, H2H po igraču sa VS 2, VS 3 i VS svi, rang lista duela i poređenje dva igrača.</li>
         <li><b>📊 Pregledi</b> – svi pivoti iz Excela: po godinama, sveskama, mesecima, danima, blejama (i kumulativno), prva/poslednja partija bleje, broj igrača i partija, highlight.</li>
         <li><b>⭐ Rekordi</b> – istaknute partije (⚡ clutch 190–200, 💥 −101, ⛳ Hole in one), trenutni nizovi i najduži nizovi pobeda i bez pobede.</li>
-        <li><b>📖 Istorija</b> – svaka bleja i svaka partija, pretraga po datumu, svesci i igraču.</li>
+        <li><b>📖 Istorija</b> – Sveske › bleje › partije. Partija vođena u zapisniku otvara se kao stranica sveske, sa svim deljenjima. Pretraga po broju partije (#90) ili datumu.</li>
+        <li><b>🔴 Uživo</b> – kad admin vodi zapisnik, gore se pojavi crvena traka „Uživo“: tapni i prati partiju posle svake ruke.</li>
       </ul>
       <p class="muted small">Pojmovi: <b>finale</b> = poslednja dva igrača u partiji; <b>vs 2 / vs 3</b> = pobeda kad su na kraju ostala još dvojica / trojica; <b>vs svi</b> = pobeda pre nego što je iko ispao; <b>niz</b> se računa samo kroz partije u kojima je igrač igrao.</p>
       ${r ? `<h2>${esc(r.title)}</h2><p class="muted">${esc(r.sub)}</p>${r.sections.map((sc) => `<details class="box"><summary>${esc(sc.h)}</summary><table class="grid rules"><tbody>${sc.items.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("")}</tbody></table></details>`).join("")}` : ""}`);
@@ -132,7 +133,9 @@ Vidimo se na bleji! 🃏`;
     fillFilters();
     const last = S.data.days[S.data.days.length - 1];
     $("#lastUpd").textContent = last ? "· poslednja bleja " + fmtDate(last.date) : "";
+    $("#liveBar").onclick = () => { if (S.view !== "live") S.prevView = S.view; S.view = "live"; $$("#nav button").forEach((x) => x.classList.remove("on")); render(); window.scrollTo(0, 0); };
     render();
+    startLive();
   }
 
   function fillFilters() {
@@ -144,7 +147,7 @@ Vidimo se na bleji! 🃏`;
   $("#fYear").onchange = (e) => { S.f.year = e.target.value; render(); };
   $("#fBook").onchange = (e) => { S.f.book = e.target.value; render(); };
   $("#fReset").onclick = () => { S.f = { year: "", book: "" }; fillFilters(); render(); };
-  $$("#nav button").forEach((b) => b.onclick = () => { S.view = b.dataset.v; if (S.view !== "admin") S.players = S.data.players; $$("#nav button").forEach((x) => x.classList.toggle("on", x === b)); render(); window.scrollTo(0, 0); });
+  $$("#nav button").forEach((b) => b.onclick = () => { if (b.dataset.v === "istorija" && S.view === "istorija") S.nav = {}; S.view = b.dataset.v; if (S.view !== "admin") S.players = S.data.players; $$("#nav button").forEach((x) => x.classList.toggle("on", x === b)); render(); window.scrollTo(0, 0); });
   $("#modalClose").onclick = () => closeModal();
   $("#modal").onclick = (e) => { if (e.target.id === "modal") $("#modal").classList.add("hidden"); };
   // Potvrda u samoj aplikaciji (sistemski confirm() pregledač ume da blokira)
@@ -199,11 +202,13 @@ Vidimo se na bleji! 🃏`;
   const filterLabel = () => [S.f.year, S.f.book].filter(Boolean).join(" · ") || "Sve od 2017.";
 
   function render() {
-    $("#top .filters").style.display = S.view === "admin" ? "none" : "";
-    const v = { tabela: vTabela, h2h: vH2H, pivot: vPivot, nizovi: vNizovi, istorija: vIstorija, admin: vAdmin }[S.view];
-    $("#view").innerHTML = v();
+    $("#top .filters").style.display = ["admin", "istorija", "live"].includes(S.view) ? "none" : "";
+    const v = { tabela: vTabela, h2h: vH2H, pivot: vPivot, nizovi: vNizovi, istorija: vIstorija, admin: vAdmin, live: vLive }[S.view] || vTabela;
+    $("#view").innerHTML = (document.body.classList.contains("tablemode") ? `<button class="ghost small tmx" id="tmExit">✕ Izađi iz celog ekrana</button>` : "") + v();
     bind[S.view] && bind[S.view]();
+    const tx = $("#tmExit"); if (tx) tx.onclick = tableMode;
     makeSortable($("#view"));
+    liveBar();
   }
   const bind = {};
 
@@ -431,32 +436,213 @@ Vidimo se na bleji! 🃏`;
       </tbody></table></div><p class="muted small">Niz se računa kroz partije u kojima je igrač igrao. ${filterLabel()}</p>`;
   }
 
-  // ---------- Istorija ----------
+  // ---------- Istorija: Sveske › Bleja › Partija › Deljenja ----------
+  const MESECI = ["jan", "feb", "mar", "apr", "maj", "jun", "jul", "avg", "sep", "okt", "nov", "dec"];
+  const DANI_K = ["pon", "uto", "sre", "čet", "pet", "sub", "ned"];
+  const pl = (n, a, b, c) => n % 10 === 1 && n % 100 !== 11 ? a : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? b : c;
+  const BOOK_COLORS = { yellow: "#ca8a04", yelow: "#ca8a04", purple: "#9333ea", blue: "#2563eb", green: "#16a34a", red: "#dc2626", brown: "#92400e", black: "#0f172a", orange: "#ea580c", pink: "#db2777", white: "#94a3b8", gray: "#64748b", grey: "#64748b", siva: "#64748b" };
+  const bookColor = (b) => { const w = String(b).toLowerCase().split(/\s+/).find((x) => BOOK_COLORS[x]); return w ? BOOK_COLORS[w] : "#475569"; };
+  const bookParts = (b) => { const m = String(b).match(/^(\d+)\s*(.*)$/); return m ? [m[1], m[2] || b] : ["", String(b)]; };
+  const monYr = (iso) => { const [y, m] = iso.split("-"); return `${MESECI[+m - 1]} ${y}`; };
+  const dm = (iso) => { const [, m, d] = iso.split("-"); return `${+d}.${+m}.`; };
+  const tipText = (g) => g.t === "F" ? "Finale 1 na 1" : g.t === "A" ? "Protiv svih" : `Protiv ${g.t}`;
+  const names = (ids) => ids.map((i) => esc(pname(i))).join(", ").replace(/, ([^,]*)$/, " i $1");
+  const goAttr = (nav) => `data-go="${esc(JSON.stringify(nav))}"`;
+  const unpackHand = (r) => Array.isArray(r) ? { w: r[0], j: !!r[1], d: r[2], s: r[3] || {} } : r;
+  const packHand = (h) => [h.w, h.j ? 1 : 0, h.d, h.s];
+  const winCount = (gs) => { const c = {}; gs.forEach((g) => c[g.w] = (c[g.w] || 0) + 1); return c; };
+
+  function go(nav, replace) {
+    S.nav = nav || {};
+    try { (replace ? history.replaceState : history.pushState).call(history, { mmNav: S.nav }, ""); } catch { }
+    render(); window.scrollTo(0, 0);
+  }
+  window.addEventListener("popstate", (e) => {
+    if (!S.data) return;
+    const nav = e.state?.mmNav;
+    if (S.view !== "istorija" && !nav) return;
+    S.nav = nav || {};
+    if (S.view !== "istorija") { S.view = "istorija"; S.players = S.data.players; $$("#nav button").forEach((x) => x.classList.toggle("on", x.dataset.v === "istorija")); }
+    render();
+  });
+  const crumbs = (items) => `<nav class="crumbs" aria-label="Putanja">${items.map(([label, nav], i) => i < items.length - 1 ? `<button class="lnk" ${goAttr(nav)}>${esc(label)}</button><span>›</span>` : `<b>${esc(label)}</b>`).join("")}</nav>`;
+  const ptitle = (t, sub, back) => `<div class="ptitle">${back ? `<button class="back" ${goAttr(back)} aria-label="Nazad">‹</button>` : ""}<div><h2>${t}</h2>${sub ? `<p class="muted small">${sub}</p>` : ""}</div></div>`;
+
   function vIstorija() {
-    const g = G(); const byDay = new Map();
-    g.forEach((x) => { if (!byDay.has(x.day)) byDay.set(x.day, []); byDay.get(x.day).push(x); });
-    let days = [...byDay.entries()].sort((a, b) => b[0] - a[0]);
-    if (S.histPlayer) days = days.filter(([, gs]) => gs[0].p.includes(S.histPlayer));
-    if (S.histQ) days = days.filter(([, gs]) => fmtDate(gs[0].date).includes(S.histQ) || gs[0].book.toLowerCase().includes(S.histQ.toLowerCase()));
-    const shown = days.slice(0, 60);
-    const desc = (x) => x.t === "F" ? `pobedio ${dot(x.l[0])}${esc(pname(x.l[0]))} u finalu` : (x.t === "2" || x.t === "3") ? `pobedio ${x.l.map((i) => esc(pname(i))).join(", ").replace(/, ([^,]*)$/, " i $1")}` : "pobedio sve";
-    return `<div class="row"><input id="hq" type="search" placeholder="Datum (npr. 3.2025) ili sveska" value="${esc(S.histQ)}">
-      <select id="hp"><option value="">Svi igrači</option>${S.players.map((p) => `<option value="${p.id}" ${S.histPlayer === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></div>
-      <p class="muted small">${days.length} bleja${days.length > 60 ? " (prikazano 60)" : ""}</p>
-      ${shown.map(([n, gs]) => {
-        const cnt = {}; gs.forEach((x) => cnt[x.w] = (cnt[x.w] || 0) + 1);
-        const nh = gs.filter((x) => Stats.hlKind(x.h)).length;
-        return `<details class="night"><summary><span><b>${fmtDate(gs[0].date)}</b>${nh ? ` <span class="hl">${gs.filter((x) => Stats.hlKind(x.h)).map((x) => Stats.HL[Stats.hlKind(x.h)].icon).join("")}</span>` : ""} <span class="muted small">${Stats.DANI[gs[0].wd]} · ${esc(gs[0].book)} · bleja ${n}</span></span>
-        <span class="score">${gs[0].p.map((id) => `<span class="pill" style="--c:${color(id)}">${esc(pname(id))} ${cnt[id] || 0}</span>`).join("")}</span></summary>
-        <button class="ghost small" data-share="${gs[0].date}">📣 Podeli rezultate</button>
-        <ol class="list">${gs.map((x) => `<li><span class="muted small">#${x.bookIdx}</span> ${dot(x.w)}<b>${esc(pname(x.w))}</b> ${desc(x)}${x.h != null && Stats.hlKind(x.h) ? ` <span class="hl">${Stats.hlText(x.h)}</span>` : ""}</li>`).join("")}</ol></details>`;
+    const N = S.nav || {};
+    if (N.g != null) { const g = S.games.find((x) => x.id === N.g); if (g) return vPartija(g); }
+    if (N.day != null) { const gs = S.games.filter((x) => x.day === N.day); if (gs.length) return vBleja(gs); }
+    if (N.book && S.games.some((g) => g.book === N.book)) return vSveska(N.book);
+    return vSveske();
+  }
+
+  function vSveske() {
+    const books = [...new Set(S.games.map((g) => g.book))];
+    const lastG = S.games[S.games.length - 1], lastDayGs = S.games.filter((g) => g.day === lastG.day);
+    const q = (S.histQ || "").trim();
+    let res = "";
+    if (q) {
+      const num = q.match(/^#?\s*(\d{1,4})$/), qd = q.replace(/\s/g, "");
+      if (num) {
+        const hits = S.games.filter((g) => g.bookIdx === +num[1]).reverse();
+        res = `<p class="muted small">Partija #${+num[1]} u svakoj svesci:</p>${hits.map((g) => partItem(g, `${esc(g.book)} #${g.bookIdx} · ${fmtDate(g.date)}`)).join("") || `<p class="empty">Nema takve partije.</p>`}`;
+      } else {
+        const days = [...new Map(S.games.filter((g) => fmtDate(g.date).includes(qd) || g.book.toLowerCase().includes(q.toLowerCase())).map((g) => [g.day, g])).values()].reverse();
+        res = `<p class="muted small">${days.length} ${pl(days.length, "bleja", "bleje", "bleja")}${days.length > 80 ? " (prikazano 80)" : ""}</p>${days.slice(0, 80).map((g) => dayItem(S.games.filter((x) => x.day === g.day), true)).join("") || `<p class="empty">Ništa nije pronađeno.</p>`}`;
+      }
+    }
+    return `${ptitle("Sveske", `${books.length} ${pl(books.length, "sveska", "sveske", "svezaka")} · ${new Set(S.games.map((g) => g.day)).size} bleja · ${S.games.length} partija`)}
+      <input id="hq" type="search" class="full" placeholder="Nađi partiju (#90) ili bleju (12.11.2026)" value="${esc(S.histQ || "")}" aria-label="Pretraga">
+      ${q ? res : `
+      <button class="item hot" ${goAttr({ day: lastG.day })}><span class="dotlast"></span><span class="grow"><span class="small strong">Poslednja bleja</span><span>Bleja ${lastG.day} · ${fmtDate(lastG.date)} · ${lastDayGs.length} ${pl(lastDayGs.length, "partija", "partije", "partija")}</span></span><span class="chev">›</span></button>
+      <h3 class="cap">Sveske</h3>
+      ${books.slice().reverse().map((b, i) => {
+        const gs = S.games.filter((g) => g.book === b), wc = winCount(gs), top = Math.max(...Object.values(wc)), lead = Object.keys(wc).filter((id) => wc[id] === top);
+        const [no, nm] = bookParts(b), c = bookColor(b);
+        return `<button class="item" ${goAttr({ book: b })}><span class="spine" style="--c:${c}">${esc(no)}</span>
+          <span class="grow"><span class="spread"><b>${esc(nm)}</b><span class="muted small">${monYr(gs[0].date)} – ${i === 0 ? "danas" : monYr(gs[gs.length - 1].date)}</span></span>
+          <span class="muted small">${new Set(gs.map((g) => g.day)).size} bleja · ${gs.length} partija</span>
+          <span class="small">Najviše pobeda: ${lead.map((id) => `<b style="color:${color(id)}">${esc(pname(id))}</b>`).join(" / ")} ${top}</span></span><span class="chev">›</span></button>`;
+      }).join("")}`}`;
+  }
+
+  function vSveska(book) {
+    const gs = S.games.filter((g) => g.book === book), days = [...new Set(gs.map((g) => g.day))];
+    const isLast = S.games[S.games.length - 1].book === book;
+    const wc = winCount(gs), ids = [...new Set(gs.flatMap((g) => g.p))].sort((a, b) => (wc[b] || 0) - (wc[a] || 0)), mx = Math.max(1, ...Object.values(wc));
+    let lastYear = null;
+    return `${ptitle(`Sveska ${esc(book)}`, `${fmtDate(gs[0].date)} – ${isLast ? "danas" : fmtDate(gs[gs.length - 1].date)} · ${days.length} ${pl(days.length, "bleja", "bleje", "bleja")} · ${gs.length} partija`, {})}
+      ${crumbs([["Sveske", {}], [book]])}
+      <div class="box"><h3 class="cap">Pobede u svesci</h3>
+        ${ids.map((id) => `<div class="wbar"><span>${dot(id)}${esc(pname(id))}</span><span class="track"><i style="width:${(wc[id] || 0) / mx * 100}%;background:${color(id)}"></i></span><b>${wc[id] || 0}</b></div>`).join("")}</div>
+      <h3 class="cap">Bleje</h3>
+      ${days.slice().reverse().map((n) => {
+        const dg = gs.filter((g) => g.day === n), y = dg[0].year;
+        const sep = y !== lastYear ? `<p class="yr">${y}</p>` : ""; lastYear = y;
+        return sep + dayItem(dg);
       }).join("")}`;
   }
+  // Jedna bleja u listi
+  function dayItem(dg, withBook) {
+    const g0 = dg[0], wc = winCount(dg), hl = dg.filter((g) => Stats.hlKind(g.h)), dig = dg.some((g) => g.r);
+    return `<button class="item" ${goAttr({ day: g0.day })}><span class="dbox"><b>${dm(g0.date)}</b><span class="muted small">${withBook ? g0.year : DANI_K[g0.wd]}</span></span>
+      <span class="grow"><span class="muted small">Bleja ${g0.day}${withBook ? " · " + esc(g0.book) : ""} · #${dg[0].bookIdx}${dg.length > 1 ? "–" + dg[dg.length - 1].bookIdx : ""}${dig ? " · 📝" : ""}</span>
+      <span class="tags">${Object.entries(wc).sort((a, b) => b[1] - a[1]).map(([id, k]) => `<span class="wtag" style="--c:${color(id)}">${esc(pname(id))} ${k}</span>`).join("")}${hl.map((g) => `<span class="hl">${Stats.hlText(g.h)}</span>`).join("")}</span></span><span class="chev">›</span></button>`;
+  }
+  // Jedna partija u listi
+  function partItem(g, label) {
+    const n = g.r ? g.r.length : 0;
+    return `<button class="item" ${goAttr({ g: g.id })}><span class="pno">${g.bookIdx}</span>
+      <span class="grow"><span class="muted small">${label || `${g.idx}. partija bleje`}</span>
+      <span>${dot(g.w)}<b>${esc(pname(g.w))}</b> ${gdesc(g)}</span>
+      <span class="tags">${n ? `<span class="dtag">📝 ${n} ${pl(n, "deljenje", "deljenja", "deljenja")}</span>` : `<span class="muted small">deljenja samo u svesci</span>`}${Stats.hlKind(g.h) ? `<span class="hl">${Stats.hlText(g.h)}</span>` : ""}</span></span><span class="chev">›</span></button>`;
+  }
+
+  function vBleja(gs) {
+    const g0 = gs[0], wc = winCount(gs), ids = [...g0.dp].sort((a, b) => (wc[b] || 0) - (wc[a] || 0));
+    const dayNs = [...new Set(S.games.map((g) => g.day))], i = dayNs.indexOf(g0.day), prev = dayNs[i - 1], next = dayNs[i + 1];
+    const bookDay = S.data.days.find((d) => d.n === g0.day)?.bookDay;
+    return `${ptitle(`Bleja ${g0.day} · ${fmtDate(g0.date)}`, `${Stats.DANI[g0.wd]} · ${esc(g0.book)}${bookDay ? ` · ${bookDay}. bleja u svesci` : ""} · ${gs.length} ${pl(gs.length, "partija", "partije", "partija")}`, { book: g0.book })}
+      ${crumbs([["Sveske", {}], [g0.book, { book: g0.book }], [`Bleja ${g0.day}`]])}
+      <div class="box"><h3 class="cap">Rezultat bleje</h3><div class="tags">${ids.map((id) => `<span class="wtag ${wc[id] ? "" : "zero"}" style="--c:${color(id)}">${esc(pname(id))} ${wc[id] || 0}</span>`).join("")}</div>
+        <button class="ghost small" data-share="${g0.date}">📣 Podeli rezultate</button></div>
+      <h3 class="cap">Partije</h3>
+      ${gs.map((g) => partItem(g)).join("")}
+      <div class="row pn">${prev ? `<button class="ghost" ${goAttr({ day: prev })}>‹ Bleja ${prev}</button>` : "<span></span>"}${next ? `<button class="ghost" ${goAttr({ day: next })}>Bleja ${next} ›</button>` : ""}</div>`;
+  }
+
+  function vPartija(g) {
+    const i = S.games.indexOf(g), prev = S.games[i - 1], next = S.games[i + 1];
+    const hands = (g.r || []).map(unpackHand), dig = hands.length && g.o;
+    const st = dig ? zCalc(g.o, hands) : null;
+    const tags = `<div class="tags">${dig ? `<span class="dtag">📝 Zapisnik · ${hands.length} ${pl(hands.length, "deljenje", "deljenja", "deljenja")}</span>` : ""}${Stats.hlKind(g.h) ? `<span class="hl">${Stats.hlText(g.h)}</span>` : ""}<span class="gtag">${tipText(g)}</span></div>`;
+    let body;
+    if (dig) {
+      const outs = g.o.filter((id) => st.out[id] != null && !g.l.includes(id) && id !== g.w);
+      const peak = st.peak[g.w];
+      body = sheetHTML(g.o, hands, { num: g.bookIdx, date: g.date }) + `<div class="box sum">
+        <p>${dot(g.w)}<b>${esc(pname(g.w))}</b> ${g.t === "F" ? `pobedio u finalu protiv <b>${esc(pname(g.l[0]))}</b>` : g.t === "A" ? "pobedio sve odjednom" : `pobedio protiv ${g.t} – ${st.tot[g.w] <= -101 ? "prekid na −101" : "izbacio odjednom"} <b>${names(g.l)}</b>`}${g.l.length ? ` (${g.l.map((id) => st.tot[id]).join(" · ")})` : ""}.</p>
+        ${outs.length ? `<p class="muted">Ispali ranije: ${outs.map((id) => `${esc(pname(id))} (${st.out[id] + 1}. deljenje)`).join(", ")}.</p>` : ""}
+        <p class="muted">Prvi delio ${esc(pname(hands[0].d))}${peak != null ? ` · pobednik je u toku partije imao najviše ${peak}` : ""}. D = ko je delio, * = −10, ** = −20 (žandar).</p></div>`;
+    } else {
+      body = `<div class="box sum"><p>${dot(g.w)}<b>${esc(pname(g.w))}</b> ${g.t === "F" ? `pobedio u finalu protiv <b>${esc(pname(g.l[0]))}</b>` : g.t === "A" ? "pobedio sve" : `pobedio protiv ${names(g.l)}`}.</p>
+        <p class="muted">Igrali: ${names(g.p)}.</p><p class="muted small">Deljenja ove partije su samo u svesci (${esc(g.book)}, partija #${g.bookIdx}).</p></div>`;
+    }
+    const admin = store.get("mm_admin_on") || store.get("mm_admin");
+    return `${ptitle(`Partija #${g.bookIdx} · ${esc(g.book)}`, `Bleja ${g.day} · ${Stats.DANI[g.wd]} ${fmtDate(g.date)} · ${g.idx}. partija bleje`, { day: g.day })}
+      ${crumbs([["Sveske", {}], [g.book, { book: g.book }], [`Bleja ${g.day}`, { day: g.day }], [`#${g.bookIdx}`]])}
+      ${tags}${body}
+      <div class="row pn">${prev ? `<button class="ghost" ${goAttr({ g: prev.id })}>‹ #${prev.bookIdx}</button>` : "<span></span>"}${next ? `<button class="ghost" ${goAttr({ g: next.id })}>#${next.bookIdx} ›</button>` : ""}</div>
+      ${admin ? `<button class="ghost small" data-fix="${g.id}">✏️ Ispravi ovu partiju u Unosu</button>` : ""}`;
+  }
+
   bind.istorija = () => {
+    $$("[data-go]").forEach((b) => b.onclick = () => go(JSON.parse(b.dataset.go)));
     $$("[data-share]").forEach((b) => b.onclick = () => shareModal(b.dataset.share));
-    $("#hq").oninput = (e) => { S.histQ = e.target.value; clearTimeout(S._hq); S._hq = setTimeout(() => { render(); const i = $("#hq"); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, 300); };
-    $("#hp").onchange = (e) => { S.histPlayer = e.target.value; render(); };
+    const hq = $("#hq"); if (hq) hq.oninput = (e) => { S.histQ = e.target.value; clearTimeout(S._hq); S._hq = setTimeout(() => { render(); const i = $("#hq"); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, 350); };
+    const fx = $("[data-fix]"); if (fx) fx.onclick = () => {
+      const g = S.games.find((x) => x.id === +fx.dataset.fix); if (!g) return;
+      showAdmin(); S.view = "admin"; S.adminTab = "unos"; ensureDraft();
+      const dg = S.draft.games.find((x) => x.id === g.id), day = S.draft.days.find((d) => d.n === dg?.day);
+      if (dg && day) S.edit = { date: day.date, book: day.book, editId: dg.id, gp: [...(dg.p || day.p)], w: dg.w, t: dg.t === "F" ? "F" : "M", l: [...dg.l], h: dg.h ?? null };
+      $$("#nav button").forEach((x) => x.classList.toggle("on", x.dataset.v === "admin")); render(); window.scrollTo(0, 0);
+    };
   };
+
+  // ---------- Računanje partije iz deljenja (zapisnik) ----------
+  // o = redosled kolona (sedenja), hands = [{w, j, d, s:{id: zbir karata}}]
+  function zCalc(o, hands) {
+    const tot = {}, out = {}, peak = {}, rows = [];
+    o.forEach((id) => { tot[id] = 0; peak[id] = 0; });
+    let stop = false;
+    hands.forEach((h, i) => {
+      if (stop) return;
+      const active = o.filter((id) => out[id] == null), cells = {};
+      active.forEach((id) => {
+        if (id === h.w) { tot[id] += h.j ? -20 : -10; cells[id] = { v: tot[id], m: h.j ? "**" : "*" }; }
+        else { tot[id] += (+h.s?.[id] || 0) * (h.j ? 2 : 1); cells[id] = { v: tot[id] }; }
+        if (tot[id] < 201) peak[id] = Math.max(peak[id], tot[id]);
+      });
+      active.forEach((id) => { if (tot[id] >= 201) { out[id] = i; cells[id].x = true; } });
+      rows.push({ cells, d: h.d, active });
+      if (tot[h.w] <= -101) stop = true;
+    });
+    const active = o.filter((id) => out[id] == null);
+    let end = null;
+    if (rows.length) {
+      const last = rows[rows.length - 1], low = active.find((id) => tot[id] <= -101);
+      const w = low || (active.length === 1 ? active[0] : null);
+      if (w) {
+        const l = last.active.filter((id) => id !== w), others = o.filter((id) => id !== w);
+        const t = l.length === 1 ? "F" : (l.length === others.length && others.length >= 3) ? "A" : String(Math.min(l.length, 3));
+        const cl = rows.map((r) => r.cells[w]?.v).filter((v) => v >= 190 && v <= 200);
+        end = { w, l, t, h: low ? -101 : cl.length ? Math.max(...cl) : null };
+      }
+    }
+    return { tot, out, peak, rows, active, end };
+  }
+  // Ko deli sledeću ruku: posle prethodnog delioca, redom kolona, preskače ispale
+  function zDealer(o, hands, st) {
+    if (!hands.length) return o[0];
+    const i0 = o.indexOf(hands[hands.length - 1].d);
+    for (let k = 1; k <= o.length; k++) { const id = o[(i0 + k) % o.length]; if (st.out[id] == null) return id; }
+    return st.active[0];
+  }
+  // Tabela partije kao stranica sveske
+  function sheetHTML(o, hands, opt = {}) {
+    const st = zCalc(o, hands), nd = opt.dealer || null, w = st.end?.w;
+    const cols = `grid-template-columns:30px repeat(${o.length}, minmax(0,1fr))`;
+    const head = o.map((id) => `<span class="sh">${nd === id ? `<span class="deli">DELI</span>` : ""}<span class="nm" style="color:${color(id)}">${esc(pname(id))}</span></span>`).join("");
+    const rows = st.rows.map((r, i) => `<div class="sr" style="${cols}"><span class="rn">${i + 1}<i class="dl" title="delio ${esc(pname(r.d))}" style="background:${color(r.d)}">D</i></span>${o.map((id) => {
+      const c = r.cells[id];
+      if (!c) return `<span class="sc gone"></span>`;
+      if (c.x) return `<span class="sc outc"><s>${c.v}</s></span>`;
+      return `<span class="sc${id === w && i === st.rows.length - 1 ? " win" : ""}">${c.v}${c.m ? `<sup>${c.m}</sup>` : ""}</span>`;
+    }).join("")}</div>`).join("");
+    const foot = w ? `<div class="sr foot" style="${cols}"><span></span>${o.map((id) => `<span class="sc">${id === w ? "WINNER" : ""}</span>`).join("")}</div>` : "";
+    return `<div class="paper${opt.big ? " big" : ""}">${opt.num || opt.date ? `<div class="ptop">${opt.num ? `<span class="circ">${opt.num}</span>` : "<span></span>"}<span>${opt.date ? fmtDate(opt.date) : ""}</span></div>` : ""}
+      <div class="sr shead" style="${cols}"><span></span>${head}</div>${rows || `<div class="sr" style="${cols}"><span></span><span class="sc muted" style="grid-column:2/-1">prvo deljenje…</span></div>`}${foot}</div>`;
+  }
 
   // ---------- Unos (admin) ----------
   const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
@@ -471,7 +657,7 @@ Vidimo se na bleji! 🃏`;
     S.players = S.draft.players;
   }
   function saveDraft() { S.dirty = true; S.draft.__base = baseId(); store.set("mm_draft", S.draft); }
-  function vAdmin() {
+  function vUnos() {
     ensureDraft();
     const cfg = store.get("mm_admin", { owner: "", repo: "", branch: "main", token: "" });
     const D = S.draft, books = [...new Set(D.days.map((d) => d.book))];
@@ -531,11 +717,13 @@ Vidimo se na bleji! 🃏`;
         ${typeof E.h === "number" && E.h >= 190 ? `<label class="small muted">Najviše poena u toku partije (190–200) <input id="eClutch" type="number" min="190" max="200" value="${E.h}" inputmode="numeric"></label>` : ""}` : ""}
       <button id="addGame" class="primary" ${canAdd() ? "" : "disabled"}>${editing ? `💾 Sačuvaj ispravku ${partNo}. partije` : `+ Dodaj ${partNo}. partiju`}</button>
       ${canAdd() ? "" : `<p class="small warn hint">👆 ${!E.w ? "Tapni pobednika partije." : E.t === "F" ? "Tapni protivnika u finalu." : "Tapni bar 2 protivnika."}</p>`}
+      ${editing && D.games.find((g) => g.id === E.editId)?.r ? `<p class="small warn">📝 Ova partija je vođena u zapisniku — ispravka menja samo rezultat, ne i deljenja.</p>` : ""}
       ${editing ? `<button id="cancelEdit" class="ghost primary">Otkaži ispravku</button>` : ""}
     </div>
     ${dayGames.length ? `<h3>Bleja ${blejaNo} · ${fmtDate(E.date)} · ${dayGames.length} ${dayGames.length === 1 ? "partija" : dayGames.length < 5 ? "partije" : "partija"}</h3>
       <p class="small muted">Dodirni ✏️ da ispraviš partiju, ✕ da je obrišeš.</p>
-      <ol class="list glist">${dayGames.map((x) => `<li class="${x.id === E.editId ? "on" : ""}">${dot(x.w)}<b>${esc(pname(x.w))}</b> ${gdesc(x)} ${x.h != null ? Stats.hlText(x.h) : ""}
+      ${dayGames.some((x) => x.r) ? `<p class="small warn">📝 Ova bleja ima partije iz zapisnika — ne unosi ih ponovo iz sveske.</p>` : ""}
+      <ol class="list glist">${dayGames.map((x) => `<li class="${x.id === E.editId ? "on" : ""}">${dot(x.w)}<b>${esc(pname(x.w))}</b> ${gdesc(x)} ${x.h != null ? Stats.hlText(x.h) : ""}${x.r ? ` <span class="small muted">📝 ${x.r.length} del.</span>` : ""}
         <span class="muted small">(${(x.p || day.p).map(pname).join(", ")}) · ${esc(day.book)} #${bookIdxOf(x.id)}</span>
         <span class="acts"><button class="ghost small" data-ed="${x.id}">✏️</button><button class="ghost small" data-del="${x.id}">✕</button></span></li>`).join("")}</ol>` : ""}
     <details class="box" id="impBox" ${S.impOpen ? "open" : ""}><summary>📋 Unos iz teksta / sa slike sveske</summary>
@@ -759,7 +947,7 @@ Mićko > Ugar | HIO</pre>
   function canAdd() { const E = S.edit; return E && E.w && ((E.t === "F" && E.l.length === 1) || (E.t === "M" && E.l.length >= 2)); }
   // "Protiv više" -> tip partije: 2, 3 ili svi (A)
   function multiType(l, gp, w) { const others = gp.filter((x) => x !== w); return l.length === others.length && others.length >= 3 ? "A" : String(Math.min(l.length, 3)); }
-  bind.admin = () => {
+  function bindUnos() {
     const E = S.edit, D = S.draft;
     const books = [...new Set(D.days.map((d) => d.book))];
     const reset = () => { E.w = null; E.l = []; E.t = "F"; E.h = null; E.gp = null; E.editId = null; };
@@ -814,8 +1002,10 @@ Mićko > Ugar | HIO</pre>
     $("#impBox").ontoggle = (e) => { S.impOpen = e.target.open; };
     $("#impText").oninput = (e) => { S.impText = e.target.value; S.imp = null; };
     $("#impParse").onclick = () => { S.impText = $("#impText").value; S.imp = parseImport(S.impText, D); render(); };
-    const ia = $("#impAdd"); if (ia) ia.onclick = () => {
-      const its = S.imp.items; its.forEach((x) => putGame(D, x, null));
+    const ia = $("#impAdd"); if (ia) ia.onclick = async () => {
+      const its = S.imp.items;
+      const dup = [...new Set(its.map((x) => x.date))].filter((dt) => { const d = D.days.find((y) => y.date === dt); return d && D.games.some((g) => g.day === d.n && g.r); });
+      if (dup.length && !(await ask(`Za ${dup.map(fmtDate).join(", ")} već postoje partije iz zapisnika. Ako je ovo ista bleja iz sveske, partije bi se upisale dvaput.\nIpak dodaj?`, "Ipak dodaj"))) return; its.forEach((x) => putGame(D, x, null));
       saveDraft(); E.date = its[its.length - 1].date; reset(); S.imp = null; S.impText = ""; toast(`Dodato ${its.length} partija — proveri pa „Sačuvaj i objavi“`); render();
     };
     $("#discard").onclick = async () => { if (!(await ask("Odbaciti sve nesačuvane izmene? Vraća se poslednja objavljena verzija.", "Odbaci"))) return; store.del("mm_draft"); S.draft = null; S.dirty = false; S.edit = null; S.imp = null; S.impText = ""; S.players = S.data.players; toast("Izmene odbačene"); render(); };
@@ -830,7 +1020,7 @@ Mićko > Ugar | HIO</pre>
         store.set("mm_admin", c); toast("✅ Prijavljen kao admin"); render();
       } catch (e) { toast("Token ne radi: " + e.message, 5000); }
     };
-    $("#saveGh").onclick = publish;
+    $("#saveGh").onclick = () => publish();
     $("#pwChange").onclick = async () => {
       const v = $("#newPw").value.trim();
       if (v.length < 8) return toast("Lozinka treba da ima bar 8 znakova.");
@@ -869,16 +1059,288 @@ Mićko > Ugar | HIO</pre>
       const rows = [["id", "bleja", "datum", "sveska", "igraci", "pobednik", "tip", "porazeni", "istaknuto"]].concat(D.games.map((g) => { const d = dm.get(g.day); return [g.id, g.day, d.date, d.book, d.p.map(pname).join("|"), pname(g.w), Stats.TIP[g.t], g.l.map(pname).join("|"), g.h ?? ""]; }));
       download("maumau.csv", "﻿" + rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(";")).join("\n"), "text/csv");
     };
+  }
+  // Unos: Zapisnik (partija deljenje po deljenje) ili ručni unos rezultata
+  function vAdmin() {
+    ensureDraft();
+    if (!S.adminTab) S.adminTab = zLoad()?.cur ? "zap" : "unos";
+    return `<div class="seg" role="tablist"><button role="tab" data-at="zap" class="${S.adminTab === "zap" ? "on" : ""}">📝 Zapisnik</button><button role="tab" data-at="unos" class="${S.adminTab === "unos" ? "on" : ""}">✏️ Unos rezultata</button></div>` + (S.adminTab === "zap" ? vZap() : vUnos());
+  }
+  bind.admin = () => {
+    $$("[data-at]").forEach((b) => b.onclick = () => { S.adminTab = b.dataset.at; render(); window.scrollTo(0, 0); });
+    S.adminTab === "zap" ? bindZap() : bindUnos();
   };
+
+  // ---------- 📝 Zapisnik (vodi admin; sveska može paralelno) ----------
+  // Stanje je na telefonu (mm_zap); posle svake ruke šalje se šifrovano na ntfy temu "<tema>-live" da svi prate uživo.
+  const liveTopic = () => S.data?.settings?.ntfy ? S.data.settings.ntfy + "-live" : null;
+  const zLoad = () => store.get("mm_zap", null);
+  function zSave(z) { z.at = Date.now(); store.set("mm_zap", z); if (z.seat) store.set("mm_seat", z.seat); pushLive(z); }
+  const rotate = (arr, first) => { const i = arr.indexOf(first); return i < 0 ? [...arr] : [...arr.slice(i), ...arr.slice(0, i)]; };
+  const zActiveBleja = (z) => z && !z.done && Date.now() - (z.at || 0) < 10 * 3600 * 1000;
+
+  // Predlog za sledeću partiju: ko igra, kako sede, ko prvi deli
+  function zDefaults(D, date) {
+    const ids = D.players.map((p) => p.id);
+    let seat = store.get("mm_seat", null) || [...D.games].reverse().find((g) => g.o)?.o || ids;
+    seat = [...seat.filter((id) => ids.includes(id)), ...ids.filter((id) => !seat.includes(id))];
+    const day = D.days.find((d) => d.date === date), dayGames = day ? D.games.filter((g) => g.day === day.n) : [];
+    const lastDay = [...D.days].filter((d) => d.date <= date).pop();
+    const lg = dayGames[dayGames.length - 1] || (lastDay ? D.games.filter((g) => g.day === lastDay.n).pop() : null);
+    const play = lg ? (lg.p || lastDay.p).filter((id) => ids.includes(id)) : ids.slice(0, 5);
+    return { seat, play: [...play], d0: null, reseat: null };
+  }
+  // Prvi deli pobednik poslednje partije; ako ne igra, pobednik partije pre toga...
+  function zFirstDealer(D, play) {
+    for (let i = D.games.length - 1; i >= 0; i--) if (play.includes(D.games[i].w)) return { id: D.games[i].w, why: i === D.games.length - 1 ? "pobednik poslednje partije" : `pobednik ranije partije (${esc(pname(D.games[D.games.length - 1].w))} sada ne igra)` };
+    return { id: play[0], why: "prvi u redosledu" };
+  }
+  const zCols = (zs, d0) => rotate(zs.seat.filter((id) => zs.play.includes(id)), d0);
+  const bookIdxIn = (D, date, book, gid) => {
+    let n = 0;
+    for (const d of D.days) { if (d.book !== book) continue; for (const g of D.games) if (g.day === d.n) { n++; if (g.id === gid) return n; } if (d.date === date && gid == null) return n + 1; }
+    return n + 1;
+  };
+
+  function vZap() {
+    ensureDraft();
+    const z = zLoad();
+    if (z?.cur) { const st = zCalc(z.cur.o, z.cur.hands); return st.end ? vZapEnd(z, st) : vZapHand(z, st); }
+    return vZapStart(z);
+  }
+  const zIntro = () => `<p class="small muted">Vodiš partiju deljenje po deljenje: posle svake ruke tapni ko je završio i upiši zbir karata ostalih. Aplikacija sabira, duplira kod žandara, izbacuje na 201, prepoznaje kraj i upisuje partiju. Sveska može da se vodi paralelno.${liveTopic() ? "" : " <b>Za praćenje uživo upiši ntfy temu u Unos → ⚙️ Podešavanja.</b>"}</p>`;
+
+  function vZapStart(z) {
+    const D = S.draft, active = zActiveBleja(z), date = active ? z.date : today();
+    const day = D.days.find((d) => d.date === date), dayGames = day ? D.games.filter((g) => g.day === day.n) : [];
+    const books = [...new Set(D.days.map((d) => d.book))];
+    if (!S.zs || S.zs.date !== date) S.zs = { ...zDefaults(D, date), date, book: (active && z.book) || day?.book || D.days[D.days.length - 1]?.book || "" };
+    const zs = S.zs;
+    const fd = zFirstDealer(D, zs.play), d0 = zs.d0 && zs.play.includes(zs.d0) ? zs.d0 : fd.id;
+    const o = zCols(zs, d0), n = dayGames.length + 1;
+    const manual = dayGames.filter((g) => !g.r).length;
+    const reseat = zs.reseat;
+    return `<h2>📝 Zapisnik</h2>${zIntro()}
+      <div class="box">
+        <div class="spread"><b>Bleja ${fmtDate(date)} · ${n}. partija</b>
+          <select id="zBook" aria-label="Sveska">${books.map((b) => `<option ${b === zs.book ? "selected" : ""}>${esc(b)}</option>`).join("")}</select></div>
+        <p class="small muted">${esc(zs.book)} #${bookIdxIn(D, date, zs.book, null)}${dayGames.length ? ` · danas već upisano ${dayGames.length}${manual ? ` (ručno ${manual})` : ""}` : ""}</p>
+        <p class="small muted">Ko igra (tapni da uključiš ili isključiš):</p>
+        <div class="chips">${D.players.map((p) => `<button class="pchip ${zs.play.includes(p.id) ? "on" : ""}" style="--c:${color(p.id)}" data-zp="${p.id}">${esc(p.name)}</button>`).join("")}</div>
+        ${reseat ? `<p class="small warn">Tapkaj igrače redom kako sede (u smeru deljenja), počev od bilo koga:</p>
+          <div class="chips">${zs.play.map((id) => { const k = reseat.indexOf(id); return `<button class="pchip ${k >= 0 ? "on" : ""}" style="--c:${color(id)}" data-zr="${id}">${k >= 0 ? k + 1 + ". " : ""}${esc(pname(id))}</button>`; }).join("")}</div>
+          <button id="zReX" class="ghost small">Otkaži</button>`
+        : `<p class="small muted">Redosled kolona i deljenja:</p>
+          <ol class="seat">${o.map((id, i) => `<li>${dot(id)}<b>${esc(pname(id))}</b>${i === 0 ? ` <span class="deli">DELI</span> <span class="muted small">${zs.d0 && zs.d0 !== fd.id ? "izabrano" : fd.why}</span>` : ""}</li>`).join("")}</ol>
+          <div class="row"><button id="zReseat" class="ghost small">Drugačije sede</button><button id="zD0" class="ghost small">Neko drugi deli prvi</button></div>
+          ${S.zD0open ? `<div class="chips">${o.map((id) => `<button class="chip ${id === d0 ? "on" : ""}" data-zd0="${id}">${esc(pname(id))}</button>`).join("")}</div>` : ""}`}
+        <button id="zStart" class="primary" ${o.length >= 2 && !reseat ? "" : "disabled"}>▶︎ Počni ${n}. partiju</button>
+        ${!day && zs.play.length < 3 ? `<p class="small warn hint">Za novu bleju potrebna su najmanje 3 igrača.</p>` : ""}
+      </div>
+      ${dayGames.length ? `<h3>Partije ove bleje</h3><ol class="list">${dayGames.map((g) => `<li>${dot(g.w)}<b>${esc(pname(g.w))}</b> ${gdesc(g)}${g.h != null ? " " + Stats.hlText(g.h) : ""} <span class="muted small">${g.r ? `📝 ${g.r.length} del.` : "ručno"}</span></li>`).join("")}</ol>
+        <button id="zFinish" class="primary ghost">🏁 Završi bleju i obavesti ekipu</button>` : ""}`;
+  }
+
+  function vZapHand(z, st) {
+    const D = S.draft, cur = z.cur, nh = cur.hands.length + 1;
+    const H = S.zh || (S.zh = { w: null, j: false, s: {}, d: null });
+    const dealer = H.d && st.active.includes(H.d) ? H.d : zDealer(cur.o, cur.hands, st);
+    const others = st.active.filter((id) => id !== H.w);
+    const ready = H.w && others.every((id) => H.s[id] !== undefined && H.s[id] !== "");
+    const dayGames = (D.days.find((d) => d.date === z.date) ? D.games.filter((g) => g.day === D.days.find((d) => d.date === z.date).n) : []);
+    const prev = (id) => { const v = H.s[id]; if (v === undefined || v === "") return `${st.tot[id]}`; const nt = st.tot[id] + (+v) * (H.j ? 2 : 1); return `${st.tot[id]} → ${nt}${nt >= 201 ? " · ispada" : ""}`; };
+    return `<div class="zhead"><div><b>Zapisnik · ${dayGames.length + 1}. partija</b><span>${fmtDate(z.date)} · ${esc(z.book)} #${bookIdxIn(D, z.date, z.book, null)} · ruka ${nh}</span></div>${liveTopic() ? `<span class="livebadge">● Uživo za sve</span>` : ""}</div>
+      ${sheetHTML(cur.o, cur.hands, { dealer, big: document.body.classList.contains("tablemode") })}
+      <div class="row dealrow"><span>🃏 Deli ${nh}. ruku: <b style="color:${color(dealer)}">${esc(pname(dealer))}</b></span><button id="zDch" class="ghost small">Promeni delioca</button></div>
+      ${S.zDch ? `<div class="chips">${st.active.map((id) => `<button class="chip ${dealer === id ? "on" : ""}" data-zdl="${id}">${esc(pname(id))}</button>`).join("")}</div>` : ""}
+      <div class="box">
+        <p class="small muted">Ko je završio ruku?</p>
+        <div class="chips">${st.active.map((id) => `<button class="pchip ${H.w === id ? "on" : ""}" style="--c:${color(id)}" data-zw="${id}">${esc(pname(id))}</button>`).join("")}</div>
+        ${H.w ? `<label class="chk left"><input type="checkbox" id="zJ" ${H.j ? "checked" : ""}> Završio žandarom (−20, ostalima duplo)</label>
+        <p class="small muted">Zbir karata u ruci${H.j ? " — upiši kako jeste, aplikacija duplira" : ""}:</p>
+        <div class="zin">${others.map((id) => `<label><span>${dot(id)}${esc(pname(id))}</span><input type="number" inputmode="numeric" min="0" step="1" data-zpts="${id}" value="${H.s[id] ?? ""}" aria-label="Zbir karata ${esc(pname(id))}"><small data-zprev="${id}">${prev(id)}</small></label>`).join("")}</div>` : ""}
+        <button id="zAdd" class="primary" ${ready ? "" : "disabled"}>✔︎ Upiši ${nh}. ruku</button>
+      </div>
+      <div class="row">${cur.hands.length ? `<button id="zUndo" class="ghost">↩︎ Poništi poslednju ruku</button>` : ""}<button id="zFull" class="ghost">⛶ Ceo ekran</button><button id="zAbort" class="ghost">✖ Odbaci partiju</button></div>`;
+  }
+
+  function vZapEnd(z, st) {
+    const D = S.draft, cur = z.cur, e = st.end, dayGames = (() => { const d = D.days.find((x) => x.date === z.date); return d ? D.games.filter((g) => g.day === d.n) : []; })();
+    const h = S.zH === undefined ? e.h : S.zH;
+    const inBook = D.games.filter((g) => { const d = D.days.find((x) => x.n === g.day); return d && d.book === z.book && g.w === e.w; }).length + 1;
+    const early = cur.o.filter((id) => st.out[id] != null && !e.l.includes(id));
+    const admin = !!store.get("mm_admin")?.token;
+    return `<div class="zhead"><div><b>Zapisnik · kraj ${dayGames.length + 1}. partije</b><span>${fmtDate(z.date)} · ${esc(z.book)} #${bookIdxIn(D, z.date, z.book, null)} · ${cur.hands.length} ${pl(cur.hands.length, "ruka", "ruke", "ruku")}</span></div></div>
+      <div class="wincard" style="--c:${color(e.w)}"><span class="trophy">🏆</span><span class="muted small">Pobednik</span><b>${esc(pname(e.w))}</b><span class="muted small">${inBook}. pobeda u svesci ${esc(z.book)}</span></div>
+      <div class="box kv">
+        <div><span>Kraj partije</span><b>${e.t === "F" ? `Finale – ${esc(pname(e.l[0]))}` : e.t === "A" ? `Protiv svih – ${names(e.l)}` : `Protiv ${e.t} – ${names(e.l)}`}</b></div>
+        <div><span>Istaknuto</span><span class="chips">${e.h === -101 ? `<span class="hl">${Stats.hlText(-101)}</span>` : `
+          <button class="chip ${h == null ? "on" : ""}" data-zh="">Ne</button>
+          ${typeof e.h === "number" ? `<button class="chip ${h === e.h ? "on" : ""}" data-zh="${e.h}">⚡ Clutch ${e.h}</button>` : ""}
+          <button class="chip ${h === "HIO" ? "on" : ""}" data-zh="HIO">⛳ Hole in one</button>`}</span></div>
+        ${early.length ? `<div><span>Ispali ranije</span><b>${early.map((id) => `${esc(pname(id))} (${st.out[id] + 1}. ruka)`).join(", ")}</b></div>` : ""}
+        <div><span>Konačno</span><span>${[e.w, ...e.l].map((id) => `${esc(pname(id))} ${st.tot[id]}`).join(" · ")}</span></div>
+      </div>
+      <p class="small muted">Aplikacija je ovo prepoznala sama. Ako nešto nije tačno, poništi poslednju ruku i ispravi je.</p>
+      <button id="zSave" class="primary">✔︎ Upiši partiju u rezultate${admin ? " i objavi" : ""}</button>
+      ${sheetHTML(cur.o, cur.hands, {})}
+      <button id="zUndo" class="primary ghost">↩︎ Poništi poslednju ruku</button>`;
+  }
+
+  function bindZap() {
+    const D = S.draft;
+    let z = zLoad();
+    const zs = S.zs;
+    const bk = $("#zBook"); if (bk) bk.onchange = (e) => { zs.book = e.target.value; render(); };
+    $$("[data-zp]").forEach((b) => b.onclick = () => { const id = b.dataset.zp, i = zs.play.indexOf(id); i >= 0 ? zs.play.splice(i, 1) : zs.play.push(id); zs.reseat = null; render(); });
+    const rs = $("#zReseat"); if (rs) rs.onclick = () => { zs.reseat = []; render(); };
+    const rx = $("#zReX"); if (rx) rx.onclick = () => { zs.reseat = null; render(); };
+    $$("[data-zr]").forEach((b) => b.onclick = () => {
+      const id = b.dataset.zr, i = zs.reseat.indexOf(id); i >= 0 ? zs.reseat.splice(i, 1) : zs.reseat.push(id);
+      if (zs.reseat.length === zs.play.length) { zs.seat = [...zs.reseat, ...zs.seat.filter((x) => !zs.reseat.includes(x))]; store.set("mm_seat", zs.seat); zs.reseat = null; toast("Novi redosled sedenja zapamćen"); }
+      render();
+    });
+    const zd = $("#zD0"); if (zd) zd.onclick = () => { S.zD0open = !S.zD0open; render(); };
+    $$("[data-zd0]").forEach((b) => b.onclick = () => { zs.d0 = b.dataset.zd0; S.zD0open = false; render(); });
+    const st0 = $("#zStart"); if (st0) st0.onclick = () => {
+      const day = D.days.find((d) => d.date === zs.date);
+      if (!day && zs.play.length < 3) return toast("Za novu bleju potrebna su najmanje 3 igrača (kvorum).");
+      const d0 = zs.d0 && zs.play.includes(zs.d0) ? zs.d0 : zFirstDealer(D, zs.play).id;
+      const o = zCols(zs, d0);
+      if (!zActiveBleja(z)) z = { v: 1, date: zs.date, salt: MMCrypto.newSalt() };
+      Object.assign(z, { book: zs.book, seat: zs.seat, done: false, cur: { o, hands: [] } });
+      S.zh = null; S.zs = null; S.zD0open = false; zSave(z); render(); window.scrollTo(0, 0);
+    };
+    const fin = $("#zFinish"); if (fin) fin.onclick = async () => {
+      if (!(await ask("Završiti bleju? Prikaz uživo se gasi, rezultati se objavljuju i možeš da obavestiš ekipu.", "Završi bleju"))) return;
+      const date = zs?.date || z?.date;
+      if (z) { z.done = true; z.cur = null; zSave(z); }
+      S.zs = null;
+      if (store.get("mm_draft")) { const ok = await publish({ quiet: true, date }); if (!ok) return render(); }
+      render(); if (S.data.days.some((d) => d.date === date)) shareModal(date, "🏁 Bleja završena — obavesti ekipu");
+    };
+    if (!z?.cur) return;
+    const cur = z.cur, st = zCalc(cur.o, cur.hands), H = S.zh || (S.zh = { w: null, j: false, s: {}, d: null });
+    $$("[data-zw]").forEach((b) => b.onclick = () => { H.w = b.dataset.zw; delete H.s[H.w]; render(); const f = $("[data-zpts]"); if (f) f.focus(); });
+    const dch = $("#zDch"); if (dch) dch.onclick = () => { S.zDch = !S.zDch; render(); };
+    $$("[data-zdl]").forEach((b) => b.onclick = () => { H.d = b.dataset.zdl; S.zDch = false; render(); });
+    const zj = $("#zJ"); if (zj) zj.onchange = (e) => { H.j = e.target.checked; render(); };
+    const refresh = () => {
+      const others = st.active.filter((id) => id !== H.w);
+      $$("[data-zprev]").forEach((s) => { const id = s.dataset.zprev, v = H.s[id]; if (v === undefined || v === "") s.textContent = `${st.tot[id]}`; else { const nt = st.tot[id] + (+v) * (H.j ? 2 : 1); s.textContent = `${st.tot[id]} → ${nt}${nt >= 201 ? " · ispada" : ""}`; s.classList.toggle("warn", nt >= 201); } });
+      const btn = $("#zAdd"); if (btn) btn.disabled = !(H.w && others.every((id) => H.s[id] !== undefined && H.s[id] !== ""));
+    };
+    $$("[data-zpts]").forEach((i) => {
+      i.oninput = () => { H.s[i.dataset.zpts] = i.value === "" ? "" : Math.max(0, Math.round(+i.value) || 0); refresh(); };
+      i.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); const all = $$("[data-zpts]"); const n = all[all.indexOf(i) + 1]; if (n) n.focus(); else $("#zAdd")?.click(); } };
+    });
+    refresh();
+    const add = $("#zAdd"); if (add) add.onclick = () => {
+      if (add.disabled) return;
+      const s = {}; st.active.filter((id) => id !== H.w).forEach((id) => s[id] = +H.s[id] || 0);
+      const d = H.d && st.active.includes(H.d) ? H.d : zDealer(cur.o, cur.hands, st);
+      cur.hands.push({ w: H.w, j: !!H.j, d, s }); S.zh = null; S.zDch = false; S.zH = undefined; zSave(z); render(); window.scrollTo(0, 0);
+    };
+    const un = $("#zUndo"); if (un) un.onclick = () => { const p = cur.hands.pop(); S.zh = p ? { w: p.w, j: p.j, s: { ...p.s }, d: p.d } : null; S.zH = undefined; zSave(z); render(); };
+    const ab = $("#zAbort"); if (ab) ab.onclick = async () => { if (!(await ask("Odbaciti ovu partiju (sve upisane ruke)?", "Odbaci partiju"))) return; z.cur = null; S.zh = null; zSave(z); render(); };
+    const fu = $("#zFull"); if (fu) fu.onclick = tableMode;
+    $$("[data-zh]").forEach((b) => b.onclick = () => { const v = b.dataset.zh; S.zH = v === "" ? null : v === "HIO" ? "HIO" : +v; render(); });
+    const sv = $("#zSave"); if (sv) sv.onclick = async () => {
+      const e = st.end; if (!e) return;
+      const h = S.zH === undefined ? e.h : S.zH;
+      putGame(D, { date: z.date, book: z.book, gp: [...cur.o], w: e.w, t: e.t, l: [...e.l], h }, null);
+      const g = D.games.reduce((a, b) => b.id > a.id ? b : a);
+      g.o = [...cur.o]; g.r = cur.hands.map(packHand);
+      saveDraft(); z.cur = null; z.last = { o: g.o, r: g.r }; S.zH = undefined; S.zs = null; zSave(z);
+      toast(`Upisano: ${pname(e.w)} pobedio`); render(); window.scrollTo(0, 0);
+      if (store.get("mm_admin")?.token) publish({ quiet: true, date: z.date });
+    };
+  }
+
+  // Ceo ekran (za tablet na stolu)
+  function tableMode() {
+    const on = !document.body.classList.contains("tablemode");
+    document.body.classList.toggle("tablemode", on);
+    try { if (on) document.documentElement.requestFullscreen?.().catch(() => { }); else if (document.fullscreenElement) document.exitFullscreen(); } catch { }
+    render();
+  }
+  document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement && document.body.classList.contains("tablemode")) { document.body.classList.remove("tablemode"); render(); } });
+
+  // ---------- 🔴 Uživo ----------
+  let liveT = null;
+  function pushLive(z) {
+    const topic = liveTopic(); if (!topic || !S.password || !z?.salt) return;
+    clearTimeout(liveT);
+    liveT = setTimeout(async () => {
+      try {
+        const D = S.draft || S.data, day = D.days.find((d) => d.date === z.date);
+        const games = day ? D.games.filter((g) => g.day === day.n).map((g) => ({ w: g.w, t: g.t, l: g.l, h: g.h ?? null })) : [];
+        const st = { v: 1, at: Date.now(), date: z.date, book: z.book, fin: !!z.done, games, cur: z.cur ? { o: z.cur.o, r: z.cur.hands.map(packHand) } : null, last: z.cur ? null : z.last || null };
+        let body = JSON.stringify(await MMCrypto.encrypt(st, S.password, 250000, z.salt));
+        if (body.length > 3900) { st.last = null; body = JSON.stringify(await MMCrypto.encrypt(st, S.password, 250000, z.salt)); }
+        if (body.length > 3900) return;
+        await fetch("https://ntfy.sh/" + encodeURIComponent(topic), { method: "POST", body });
+      } catch { }
+    }, 300);
+  }
+  const liveFresh = (st) => st && !st.fin && Date.now() - (st.at || 0) < 8 * 3600 * 1000;
+  async function liveHandle(m) {
+    if (!m || m.event !== "message" || !S.password) return;
+    try { const st = await MMCrypto.decrypt(JSON.parse(m.message), S.password); if (st?.v === 1 && (!S.live || st.at >= S.live.at)) setLive(st); } catch { }
+  }
+  async function startLive() {
+    const topic = liveTopic(); if (!topic || !S.password) return;
+    if (S.es && S.es.readyState !== 2) return;
+    try {
+      const txt = await fetch(`https://ntfy.sh/${encodeURIComponent(topic)}/json?poll=1&since=10h`).then((r) => r.text());
+      const ms = txt.trim().split("\n").map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter((m) => m?.event === "message");
+      if (ms.length) await liveHandle(ms[ms.length - 1]);
+    } catch { }
+    try { S.es = new EventSource(`https://ntfy.sh/${encodeURIComponent(topic)}/sse`); S.es.onmessage = (e) => { try { liveHandle(JSON.parse(e.data)); } catch { } }; } catch { }
+  }
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && S.data && (!S.es || S.es.readyState === 2)) { S.es = null; startLive(); } });
+  function setLive(st) {
+    S.live = st;
+    liveBar();
+    if (S.view === "live") render();
+  }
+  function liveBar() {
+    const b = $("#liveBar"), st = S.live; if (!b) return;
+    const mine = zLoad(), own = zActiveBleja(mine) && mine.date === st?.date; // telefon koji vodi zapisnik ne treba traku
+    const show = liveFresh(st) && !own && S.view !== "live";
+    b.classList.toggle("hidden", !show);
+    if (show) b.innerHTML = `<span class="dotlive"></span><span><b>Uživo</b> · ${fmtDate(st.date)} · ${st.cur ? `${st.games.length + 1}. partija, ruka ${st.cur.r.length + 1}` : `${st.games.length} ${pl(st.games.length, "partija", "partije", "partija")} odigrano`}</span><b>Gledaj ›</b>`;
+  }
+  function vLive() {
+    const st = S.live;
+    if (!st) return `<h2>🔴 Uživo</h2><p class="empty">Trenutno se ne vodi nijedna bleja.</p>`;
+    const wc = winCount(st.games), ids = [...new Set([...(st.cur?.o || []), ...st.games.flatMap((g) => [g.w, ...g.l])])].sort((a, b) => (wc[b] || 0) - (wc[a] || 0));
+    const t = new Date(st.at), hm = `${t.getHours()}:${String(t.getMinutes()).padStart(2, "0")}`;
+    const cur = st.cur ? { o: st.cur.o, hands: st.cur.r.map(unpackHand) } : null;
+    const curSt = cur ? zCalc(cur.o, cur.hands) : null;
+    const last = !cur && st.last ? { o: st.last.o, hands: st.last.r.map(unpackHand) } : null;
+    return `<div class="ptitle"><button class="back" id="liveBack" aria-label="Nazad">‹</button><div><h2>🔴 Bleja uživo · ${fmtDate(st.date)}</h2><p class="muted small">${esc(st.book || "")} · poslednja izmena u ${hm}${st.fin ? " · bleja završena" : ""}</p></div></div>
+      ${ids.length ? `<div class="tags">${ids.map((id) => `<span class="wtag ${wc[id] ? "" : "zero"}" style="--c:${color(id)}">${esc(pname(id))} ${wc[id] || 0}</span>`).join("")}</div>` : ""}
+      ${cur ? `<h3>${st.games.length + 1}. partija · ruka ${cur.hands.length + 1}</h3>${sheetHTML(cur.o, cur.hands, { dealer: curSt.end ? null : zDealer(cur.o, cur.hands, curSt), big: document.body.classList.contains("tablemode") })}`
+        : last ? `<h3>Poslednja partija</h3>${sheetHTML(last.o, last.hands, { big: document.body.classList.contains("tablemode") })}` : `<p class="muted">Čeka se sledeća partija…</p>`}
+      <div class="row"><button id="liveFull" class="ghost">⛶ Ceo ekran</button></div>
+      ${st.games.length ? `<h3>Odigrane partije</h3><ol class="list">${st.games.map((g) => `<li>${dot(g.w)}<b>${esc(pname(g.w))}</b> ${gdesc(g)}${g.h != null ? " " + Stats.hlText(g.h) : ""}</li>`).join("")}</ol>` : ""}`;
+  }
+  bind.live = () => {
+    $("#liveBack").onclick = () => { S.view = S.prevView || "tabela"; $$("#nav button").forEach((x) => x.classList.toggle("on", x.dataset.v === S.view)); render(); };
+    $("#liveFull").onclick = tableMode;
+  };
+
   function download(name, text, type) { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); }
 
-  async function publish() {
+  async function publish(opt = {}) {
     const cfg = store.get("mm_admin");
-    if (!cfg?.token || !cfg.owner || !cfg.repo) return toast("Prvo unesi GitHub podešavanja.");
-    const newPw = ($("#newPw")?.value || "").trim();
+    if (!cfg?.token || !cfg.owner || !cfg.repo) { toast("Prvo unesi GitHub podešavanja (Unos → ⚙️)."); return false; }
+    const newPw = opt.quiet ? "" : ($("#newPw")?.value || "").trim();
     const pw = newPw || S.password;
-    if (!pw) return toast("Nema lozinke ekipe — uloguj se ponovo.");
-    const btn = $("#saveGh"); btn.disabled = true; btn.textContent = "Objavljujem…";
+    if (!pw) { toast("Nema lozinke ekipe — uloguj se ponovo."); return false; }
+    const btn = opt.quiet ? null : $("#saveGh");
+    if (btn) { btn.disabled = true; btn.textContent = "Objavljujem…"; } else toast("Objavljujem…", 10000);
     try {
       S.draft.updated = new Date().toISOString(); delete S.draft.__base;
       const box = await MMCrypto.encrypt(S.draft, pw);
@@ -894,16 +1356,22 @@ Mićko > Ugar | HIO</pre>
           if (S.box && remote.ct && remote.ct.slice(0, 40) !== baseId()) throw new Error("CONFLICT");
         } catch (e) { if (e.message === "CONFLICT") throw new Error("neko je u međuvremenu objavio nove rezultate. Zapamti svoj unos, tapni „Odbaci izmene“, osveži aplikaciju i unesi ponovo."); }
       }
-      const body = { message: `Unos: ${S.edit?.date || ""}`, branch: cfg.branch, content: MMCrypto.b64(new TextEncoder().encode(JSON.stringify(box))), sha };
+      const pubDate = opt.date || S.edit?.date || "";
+      const body = { message: `Unos: ${pubDate}`, branch: cfg.branch, content: MMCrypto.b64(new TextEncoder().encode(JSON.stringify(box))), sha };
       const r = await fetch(api, { method: "PUT", headers: H, body: JSON.stringify(body) });
       if (!r.ok) throw new Error((await r.json()).message || r.status);
       setData(S.draft); S.box = box; S.password = pw; if (newPw && store.get("mm_pw")) store.set("mm_pw", newPw);
       store.del("mm_draft"); S.draft = null; S.dirty = false; fillFilters();
-      const pubDate = S.edit?.date;
       render();
-      if (pubDate && S.data.days.some((d) => d.date === pubDate)) shareModal(pubDate, "✅ Objavljeno — obavesti ekipu");
+      if (opt.quiet) toast("✅ Objavljeno — igrači vide za ~1 min.", 3500);
+      else if (pubDate && S.data.days.some((d) => d.date === pubDate)) shareModal(pubDate, "✅ Objavljeno — obavesti ekipu");
       else toast("✅ Objavljeno. Igrači vide izmene za ~1 min.", 4000);
-    } catch (e) { toast("Greška: " + e.message, 5000); btn.disabled = false; btn.textContent = "☁️ Sačuvaj i objavi"; }
+      return true;
+    } catch (e) {
+      toast("Greška: " + e.message + (opt.quiet ? " Rezultat je sačuvan na telefonu — objavi kasnije (Unos rezultata → Sačuvaj i objavi)." : ""), 7000);
+      if (btn) { btn.disabled = false; btn.textContent = "☁️ Sačuvaj i objavi"; }
+      return false;
+    }
   }
 
   if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => { });

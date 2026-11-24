@@ -8,16 +8,24 @@ const MMCrypto = (() => {
     const base = await crypto.subtle.importKey("raw", enc.encode(pw), "PBKDF2", false, ["deriveKey"]);
     return crypto.subtle.deriveKey({ name: "PBKDF2", hash: "SHA-256", salt, iterations: iter }, base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
   }
+  // Ključ se pamti po (lozinka, so, iteracije): poruke uživo dele istu so, pa se PBKDF2 računa samo jednom
+  const kc = new Map();
+  function keyC(pw, salt64, iter) {
+    const id = iter + "|" + salt64 + "|" + pw;
+    if (!kc.has(id)) { const p = key(pw, unb64(salt64), iter); p.catch(() => kc.delete(id)); kc.set(id, p); }
+    return kc.get(id);
+  }
   async function decrypt(box, pw) {
-    const k = await key(pw, unb64(box.salt), box.iter);
+    const k = await keyC(pw, box.salt, box.iter);
     const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(box.iv) }, k, unb64(box.ct));
     return JSON.parse(dec.decode(pt));
   }
-  async function encrypt(obj, pw, iter = 250000) {
-    const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
-    const k = await key(pw, salt, iter);
+  async function encrypt(obj, pw, iter = 250000, salt64 = null) {
+    const salt = salt64 ? unb64(salt64) : crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+    const k = salt64 ? await keyC(pw, salt64, iter) : await key(pw, salt, iter);
     const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, k, enc.encode(JSON.stringify(obj)));
     return { v: 1, iter, salt: b64(salt), iv: b64(iv), ct: b64(ct) };
   }
-  return { encrypt, decrypt, b64 };
+  const newSalt = () => b64(crypto.getRandomValues(new Uint8Array(16)));
+  return { encrypt, decrypt, b64, newSalt };
 })();
