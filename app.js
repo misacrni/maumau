@@ -83,7 +83,7 @@
         <li><b>📖 Istorija</b> – Sveske › bleje › partije. Partija vođena u zapisniku otvara se kao stranica sveske, sa svim deljenjima. Pretraga po broju partije (#90) ili datumu.</li>
         <li><b>🔴 Uživo</b> – kad admin vodi zapisnik, gore se pojavi crvena traka „Uživo“: tapni i prati partiju posle svake ruke.</li>
       </ul>
-      <p class="muted small">Pojmovi: <b>finale</b> = poslednja dva igrača u partiji; <b>vs 2 / vs 3</b> = pobeda kad su na kraju ostala još dvojica / trojica; <b>vs svi</b> = pobeda pre nego što je iko ispao; <b>niz</b> se računa samo kroz partije u kojima je igrač igrao.</p>
+      <p class="muted small">Pojmovi: <b>finale</b> = poslednja dva igrača u partiji; <b>⚡ clutch</b> = pobednik je u toku partije imao 190–200 poena; <b>⛳ Hole in one</b> = pobednik je dobio samo jedno deljenje — poslednje, kojim je izbacio sve preostale; <b>💥 −101</b> = prekid i pobeda na −101; <b>vs 2 / vs 3</b> = pobeda kad su na kraju ostala još dvojica / trojica; <b>vs svi</b> = pobeda pre nego što je iko ispao; <b>niz</b> se računa samo kroz partije u kojima je igrač igrao.</p>
       ${r ? `<h2>${esc(r.title)}</h2><p class="muted">${esc(r.sub)}</p>${r.sections.map((sc) => `<details class="box"><summary>${esc(sc.h)}</summary><table class="grid rules"><tbody>${sc.items.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("")}</tbody></table></details>`).join("")}` : ""}`);
   }
   $("#infoBtn").onclick = info;
@@ -615,8 +615,11 @@ Vidimo se na bleji! 🃏`;
       if (w) {
         const l = last.active.filter((id) => id !== w), others = o.filter((id) => id !== w);
         const t = l.length === 1 ? "F" : (l.length === others.length && others.length >= 3) ? "A" : String(Math.min(l.length, 3));
+        // ⚡ Clutch: pobednik je u toku partije imao 190–200. ⛳ Hole in one: dobio je samo jedno deljenje — poslednje, kojim je izbacio sve preostale.
         const cl = rows.map((r) => r.cells[w]?.v).filter((v) => v >= 190 && v <= 200);
-        end = { w, l, t, h: low ? -101 : cl.length ? Math.max(...cl) : null };
+        const clutch = cl.length ? Math.max(...cl) : null;
+        const hio = !low && hands.filter((h) => h.w === w).length === 1 && hands[rows.length - 1].w === w;
+        end = { w, l, t, clutch, hio, h: low ? -101 : hio ? "HIO" : clutch };
       }
     }
     return { tot, out, peak, rows, active, end };
@@ -1176,7 +1179,7 @@ Mićko > Ugar | HIO</pre>
         <div><span>Kraj partije</span><b>${e.t === "F" ? `Finale – ${esc(pname(e.l[0]))}` : e.t === "A" ? `Protiv svih – ${names(e.l)}` : `Protiv ${e.t} – ${names(e.l)}`}</b></div>
         <div><span>Istaknuto</span><span class="chips">${e.h === -101 ? `<span class="hl">${Stats.hlText(-101)}</span>` : `
           <button class="chip ${h == null ? "on" : ""}" data-zh="">Ne</button>
-          ${typeof e.h === "number" ? `<button class="chip ${h === e.h ? "on" : ""}" data-zh="${e.h}">⚡ Clutch ${e.h}</button>` : ""}
+          ${e.clutch != null ? `<button class="chip ${h === e.clutch ? "on" : ""}" data-zh="${e.clutch}">⚡ Clutch ${e.clutch}</button>` : ""}
           <button class="chip ${h === "HIO" ? "on" : ""}" data-zh="HIO">⛳ Hole in one</button>`}</span></div>
         ${early.length ? `<div><span>Ispali ranije</span><b>${early.map((id) => `${esc(pname(id))} (${st.out[id] + 1}. ruka)`).join(", ")}</b></div>` : ""}
         <div><span>Konačno</span><span>${[e.w, ...e.l].map((id) => `${esc(pname(id))} ${st.tot[id]}`).join(" · ")}</span></div>
