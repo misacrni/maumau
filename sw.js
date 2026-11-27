@@ -1,5 +1,5 @@
 // Rad bez interneta: uvek prvo mreža (najnovija verzija), keš samo kad nema mreže.
-const C = "mm-v28";
+const C = "mm-v29";
 const SHELL = ["./", "index.html", "style.css", "app.js", "stats.js", "crypto.js", "icon.svg", "manifest.webmanifest"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(C).then((c) => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener("activate", (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== C).map((k) => caches.delete(k))))); self.clients.claim(); });

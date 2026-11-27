@@ -754,7 +754,7 @@ x - x 119**</pre>
       <button id="impParse" class="ghost">Proveri</button>
       ${S.imp ? `<div class="imp">${S.imp.errors.map((e) => `<p class="small warn">⚠️ ${esc(e)}</p>`).join("")}
         ${S.imp.items.length ? `<ol class="list">${S.imp.items.map((x) => `<li><span class="muted small">${fmtDate(x.date)}${x.book ? " · " + esc(x.book) : ""}</span> ${dot(x.w)}<b>${esc(pname(x.w))}</b> ${gdesc(x)} ${x.h != null ? Stats.hlText(x.h) : ""} <span class="muted small">(${x.gp.map(pname).join(", ")})</span></li>`).join("")}</ol>` : ""}
-        ${S.imp.zaps?.length ? `<ol class="list">${S.imp.zaps.map((x) => `<li>📝 <span class="muted small">${fmtDate(x.date)} · ${esc(x.book)} #${x.idx} · ${x.hands.length} ${pl(x.hands.length, "deljenje", "deljenja", "deljenja")}</span> ${dot(x.w)}<b>${esc(pname(x.w))}</b> ${gdesc(x)} ${x.h != null ? Stats.hlText(x.h) : ""} <b class="okc">✓ slaže se sa upisanim</b>${x.unwritten ? `<br><span class="small muted">Poslednje deljenje nije zapisano u svesci (pobednik ga je dobio, ostali ispali).</span>` : ""}${x.hNote ? `<br><span class="small warn">${esc(x.hNote)}</span>` : ""}${x.replace ? `<br><span class="small warn">Zamenjuje već postojeća deljenja ove partije.</span>` : ""}</li>`).join("")}</ol>` : ""}
+        ${S.imp.zaps?.length ? `<ol class="list">${S.imp.zaps.map((x) => `<li>📝 <span class="muted small">${fmtDate(x.date)} · ${esc(x.book)} #${x.idx} · ${x.hands.length} ${pl(x.hands.length, "deljenje", "deljenja", "deljenja")}</span> ${dot(x.w)}<b>${esc(pname(x.w))}</b> ${gdesc(x)} ${x.h != null ? Stats.hlText(x.h) : ""} <b class="okc">✓ ${x.pending ? "slaže se sa rezultatom iznad" : "slaže se sa upisanim"}</b>${x.unwritten ? `<br><span class="small muted">Poslednje deljenje nije zapisano u svesci (pobednik ga je dobio, ostali ispali).</span>` : ""}${x.hNote ? `<br><span class="small warn">${esc(x.hNote)}</span>` : ""}${x.replace ? `<br><span class="small warn">Zamenjuje već postojeća deljenja ove partije.</span>` : ""}</li>`).join("")}</ol>` : ""}
         ${S.imp.items.length || S.imp.zaps?.length ? `<button id="impAdd" class="primary" ${S.imp.errors.length ? "disabled" : ""}>+ Dodaj ${[S.imp.items.length ? `${S.imp.items.length} partija` : "", S.imp.zaps?.length ? `deljenja za ${S.imp.zaps.length} ${pl(S.imp.zaps.length, "partiju", "partije", "partija")}` : ""].filter(Boolean).join(" i ")}</button>` : ""}</div>` : ""}
     </details>
     <div class="row sticky-save"><button id="saveGh" class="primary" ${S.dirty || store.get("mm_draft") ? "" : "disabled"} title="${S.dirty || store.get("mm_draft") ? "" : "Nema novih izmena za objavu"}">${S.dirty || store.get("mm_draft") ? "☁️ Sačuvaj i objavi" : "☁️ Nema izmena za objavu"}</button><button id="discard" class="ghost">Odbaci izmene</button></div>
@@ -889,7 +889,7 @@ x - x 119**</pre>
       if (t === "A" && gp.length < 3) return errors.push(ln + "„svi“ traži bar 3 igrača u partiji");
       items.push({ date, book, gp, w: w.id, t, l, h, fromImport: true });
     });
-    const zapItems = zaps.map((z) => zapisCheck(z, D, errors)).filter(Boolean);
+    const zapItems = zaps.map((z) => zapisCheck(z, D, errors, items)).filter(Boolean);
     if (!items.length && !zapItems.length && !errors.length) errors.push("Nema partija u tekstu.");
     return { items, errors, zaps: zapItems };
   }
@@ -923,15 +923,22 @@ x - x 119**</pre>
     return { hands, err };
   }
   // Zapis iz sveske: proveri da li se slaže sa već upisanom partijom (pobednik, kraj, igrači)
-  function zapisCheck(z, D, errors) {
+  function zapisCheck(z, D, errors, items = []) {
     const ln = `Zapis #${z.idx} (red ${z.line}): `;
     if (z.cols.length < 2) return errors.push(ln + "treba bar 2 igrača"), null;
     if (!z.rows.length) return errors.push(ln + "nema redova sa zbirovima"), null;
     const r = zapisHands(z.cols, z.rows);
     if (r.err.length) return r.err.forEach((e) => errors.push(`Zapis #${z.idx}, ${e}`)), null;
     const day = D.days.find((d) => d.date === z.date), gs = day ? D.games.filter((g) => g.day === day.n) : [];
-    const g = gs.find((x) => bookIdxIn(D, z.date, day.book, x.id) === z.idx);
-    if (!g) return errors.push(ln + `partija #${z.idx} za ${fmtDate(z.date)} nije upisana — prvo upiši rezultat, pa nalepi zapis.`), null;
+    let g = day ? gs.find((x) => bookIdxIn(D, z.date, day.book, x.id) === z.idx) : null, it = null, bk = day?.book || "";
+    if (!g) { // partija iz istog teksta (red „Pobednik > …“ iznad) – još nije u podacima
+      const pend = items.filter((x) => x.date === z.date);
+      const book = bk = day?.book || pend[0]?.book || [...D.days].filter((d) => d.date < z.date).pop()?.book || D.days[D.days.length - 1]?.book;
+      const base = bookIdxIn(D, z.date, book, null) - 1, k = z.idx - base - 1;
+      it = k >= 0 ? pend[k] : null;
+      if (!it) return errors.push(ln + `partija #${z.idx} za ${fmtDate(z.date)} nije upisana — dodaj red sa rezultatom (Pobednik > …) za nju.`), null;
+      g = { w: it.w, t: it.t, l: it.t === "A" ? it.gp.filter((id) => id !== it.w) : it.l, p: it.gp, h: it.h };
+    }
     let hands = r.hands, st = zCalc(z.cols, hands), unwritten = false;
     if (!st.end && st.active.includes(g.w) && st.active.length > 1) { // poslednje deljenje nije zapisano u svesci
       hands = [...hands, { w: g.w, j: false, n: 1, d: null, s: Object.fromEntries(st.active.filter((id) => id !== g.w).map((id) => [id, "x"])) }];
@@ -939,14 +946,15 @@ x - x 119**</pre>
     }
     hands.forEach((h, k) => { h.d = k ? zDealer(z.cols, hands.slice(0, k), zCalc(z.cols, hands.slice(0, k))) : z.cols[0]; });
     if (!st.end) return errors.push(ln + `partija nema kraj — u igri su još ${st.active.map(pname).join(", ")}`), null;
-    const e = st.end, gp = g.p || day.p, same = (a, b) => a.length === b.length && a.every((x) => b.includes(x));
+    const e = st.end, gp = g.p || day?.p || [], same = (a, b) => a.length === b.length && a.every((x) => b.includes(x));
     const txt = (x) => `${pname(x.w)} ${x.t === "F" ? "finale vs " + pname(x.l[0]) : x.t === "A" ? "protiv svih" : "protiv " + x.l.map(pname).join(", ")}`;
     const diffs = [];
     if (!same(gp, z.cols)) diffs.push(`igrači – upisano ${gp.map(pname).join(", ")}, u zapisu ${z.cols.map(pname).join(", ")}`);
     if (g.w !== e.w || g.t !== e.t || !same(g.l, e.l)) diffs.push(`upisano „${txt(g)}“, a iz deljenja izlazi „${txt(e)}“`);
     if (diffs.length) return errors.push(ln + "NE slaže se: " + diffs.join("; ")), null;
     const hNote = (g.h ?? null) !== (e.h ?? null) ? `istaknuto: upisano ${g.h == null ? "ništa" : Stats.hlText(g.h)}, iz deljenja ${e.h == null ? "ništa" : Stats.hlText(e.h)} — biće upisano iz deljenja` : "";
-    return { date: z.date, book: day.book, idx: z.idx, gid: g.id, w: e.w, t: e.t, l: e.l, h: e.h, cols: z.cols, hands, hNote, unwritten, replace: !!g.r };
+    if (it) it.zap = { cols: z.cols, hands, h: e.h };
+    return { date: z.date, book: bk, idx: z.idx, gid: g.id, pending: !!it, w: e.w, t: e.t, l: e.l, h: e.h, cols: z.cols, hands, hNote, unwritten, replace: !!g.r };
   }
   function defaultPlayersFor(D, date, items) {
     const prevItem = [...items].reverse().find((x) => x.date === date); if (prevItem) return [...prevItem.gp];
@@ -1091,15 +1099,23 @@ x - x 119**</pre>
     const ia = $("#impAdd"); if (ia) ia.onclick = async () => {
       const its = S.imp.items;
       const dup = [...new Set(its.map((x) => x.date))].filter((dt) => { const d = D.days.find((y) => y.date === dt); return d && D.games.some((g) => g.day === d.n && g.r); });
-      if (dup.length && !(await ask(`Za ${dup.map(fmtDate).join(", ")} već postoje partije iz zapisnika. Ako je ovo ista bleja iz sveske, partije bi se upisale dvaput.\nIpak dodaj?`, "Ipak dodaj"))) return; its.forEach((x) => putGame(D, x, null));
-      const zs = S.imp.zaps || [];
+      if (dup.length && !(await ask(`Za ${dup.map(fmtDate).join(", ")} već postoje partije iz zapisnika. Ako je ovo ista bleja iz sveske, partije bi se upisale dvaput.\nIpak dodaj?`, "Ipak dodaj"))) return; its.forEach((x) => {
+        putGame(D, x, null);
+        if (x.zap) { // deljenja iz istog teksta
+          const g = D.games.reduce((a, b) => b.id > a.id ? b : a);
+          g.o = [...x.zap.cols]; g.r = x.zap.hands.map(packHand); g.zs = 1;
+          if (x.zap.h == null) delete g.h; else g.h = x.zap.h;
+        }
+      });
+      const zs = (S.imp.zaps || []).filter((x) => !x.pending);
       zs.forEach((x) => {
         const g = D.games.find((y) => y.id === x.gid); if (!g) return;
         g.o = [...x.cols]; g.r = x.hands.map(packHand); g.zs = 1;
         if (x.h == null) delete g.h; else g.h = x.h;
       });
       saveDraft(); E.date = (its[its.length - 1] || zs[zs.length - 1]).date; reset(); S.imp = null; S.impText = "";
-      toast(`Dodato: ${[its.length ? its.length + " partija" : "", zs.length ? "deljenja za " + zs.length + " partije" : ""].filter(Boolean).join(" i ")} — proveri pa „Sačuvaj i objavi“`); render();
+      const zn = its.filter((x) => x.zap).length + zs.length;
+      toast(`Dodato: ${[its.length ? its.length + " partija" : "", zn ? "deljenja za " + zn + " partije" : ""].filter(Boolean).join(" i ")} — proveri pa „Sačuvaj i objavi“`); render();
     };
     $("#discard").onclick = async () => { if (!(await ask("Odbaciti sve nesačuvane izmene? Vraća se poslednja objavljena verzija.", "Odbaci"))) return; store.del("mm_draft"); S.draft = null; S.dirty = false; S.edit = null; S.imp = null; S.impText = ""; S.players = S.data.players; toast("Izmene odbačene"); render(); };
     $("#saveCfg").onclick = async () => {
