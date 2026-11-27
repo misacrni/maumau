@@ -1126,14 +1126,12 @@ Mićko > Ugar | HIO</pre>
         <div class="spread"><b>Bleja ${fmtDate(date)} · ${n}. partija</b>
           <select id="zBook" aria-label="Sveska">${books.map((b) => `<option ${b === zs.book ? "selected" : ""}>${esc(b)}</option>`).join("")}</select></div>
         <p class="small muted">${esc(zs.book)} #${bookIdxIn(D, date, zs.book, null)}${dayGames.length ? ` · danas već upisano ${dayGames.length}${manual ? ` (ručno ${manual})` : ""}` : ""}</p>
-        <p class="small muted">Ko igra: tapni igrače <b>redom kako sede</b>, počev od onoga ko prvi deli. Tap na izabranog ga isključuje.</p>
-        <div class="chips">${D.players.map((p) => { const k = o.indexOf(p.id); return `<button class="pchip ${k >= 0 ? "on" : ""}" style="--c:${color(p.id)}" data-zp="${p.id}">${k >= 0 ? `${k + 1}. ` : ""}${esc(p.name)}</button>`; }).join("")}</div>
-        ${o.length ? `<button id="zClear" class="ghost small">↺ Izaberi ispočetka</button>` : ""}
-        ${o.length ? `<p class="small muted">Redosled kolona i deljenja — prevuci ☰ ili pomeri strelicama:</p>
-          <ol class="order" id="zOrder">${o.map((id, i) => `<li data-id="${id}"><span class="drag" aria-hidden="true">☰</span><span class="grow">${i + 1}. ${dot(id)}<b>${esc(pname(id))}</b>${i === 0 ? ` <span class="deli">DELI</span>` : ""}</span>
-            <button class="mv" data-zmv="${id}:-1" aria-label="Pomeri ${esc(pname(id))} gore" ${i === 0 ? "disabled" : ""}>▲</button><button class="mv" data-zmv="${id}:1" aria-label="Pomeri ${esc(pname(id))} dole" ${i === o.length - 1 ? "disabled" : ""}>▼</button></li>`).join("")}</ol>
-          <p class="small muted">Prvi deli <b>${esc(pname(o[0]))}</b> — ${o[0] === fd.id ? fd.why : `izabrano (po pravilu bi delio ${esc(pname(fd.id))})`}.</p>
-          <button id="zD0" class="ghost small">Neko drugi deli prvi (isti raspored)</button>
+        <p class="small muted">Ko igra:</p>
+        <div class="chips">${D.players.map((p) => `<button class="pchip ${o.includes(p.id) ? "on" : ""}" style="--c:${color(p.id)}" data-zp="${p.id}">${esc(p.name)}</button>`).join("")}</div>
+        ${o.length ? `<p class="small muted">Kako sede — prevuci ☰ da zameniš mesta:</p>
+          <ul class="order" id="zOrder">${o.map((id, i) => `<li data-id="${id}"><span class="drag" aria-label="Prevuci ${esc(pname(id))}">☰</span><span class="grow">${dot(id)}<b>${esc(pname(id))}</b>${i === 0 ? ` <span class="deli">DELI</span>` : ""}</span></li>`).join("")}</ul>
+          <p class="small muted">${o[0] === fd.id ? `Prvi deli ${esc(pname(o[0]))} — ${fd.why}.` : `Po pravilu bi prvi delio ${esc(pname(fd.id))}.`}</p>
+          <button id="zD0" class="ghost small">Neko drugi deli prvi</button>
           ${S.zD0open ? `<div class="chips">${o.map((id) => `<button class="chip ${id === o[0] ? "on" : ""}" data-zd0="${id}">${esc(pname(id))}</button>`).join("")}</div>` : ""}` : ""}
         <button id="zStart" class="primary" ${o.length >= 2 ? "" : "disabled"}>▶︎ Počni ${n}. partiju</button>
         ${!day && o.length < 3 ? `<p class="small warn hint">Za novu bleju potrebna su najmanje 3 igrača.</p>` : ""}
@@ -1208,7 +1206,7 @@ Mićko > Ugar | HIO</pre>
         };
         h.onpointerup = h.onpointercancel = () => {
           h.onpointermove = h.onpointerup = h.onpointercancel = null;
-          if (to !== from) { const [x] = zs.order.splice(from, 1); zs.order.splice(to, 0, x); }
+          if (to !== from) { const [x] = zs.order.splice(from, 1); zs.order.splice(to, 0, x); zs.manual = true; }
           render();
         };
       };
@@ -1220,16 +1218,18 @@ Mićko > Ugar | HIO</pre>
     let z = zLoad();
     const zs = S.zs;
     const bk = $("#zBook"); if (bk) bk.onchange = (e) => { zs.book = e.target.value; render(); };
-    $$("[data-zp]").forEach((b) => b.onclick = () => { const id = b.dataset.zp, i = zs.order.indexOf(id); i >= 0 ? zs.order.splice(i, 1) : zs.order.push(id); render(); });
-    const zc = $("#zClear"); if (zc) zc.onclick = () => { zs.order = []; S.zD0open = false; render(); };
-    $$("[data-zmv]").forEach((b) => b.onclick = () => {
-      const [id, dir] = b.dataset.zmv.split(":"), i = zs.order.indexOf(id), j = i + +dir;
-      if (i < 0 || j < 0 || j >= zs.order.length) return;
-      [zs.order[i], zs.order[j]] = [zs.order[j], zs.order[i]]; render();
+    $$("[data-zp]").forEach((b) => b.onclick = () => {
+      const id = b.dataset.zp, i = zs.order.indexOf(id);
+      if (zs.manual) { i >= 0 ? zs.order.splice(i, 1) : zs.order.push(id); }
+      else { // dok niko ništa nije pomerao: zapamćena mesta, prvi deli po pravilu
+        const play = i >= 0 ? zs.order.filter((x) => x !== id) : [...zs.order, id];
+        zs.order = play.length ? rotate(zs.seat.filter((x) => play.includes(x)), zFirstDealer(D, play).id) : [];
+      }
+      render();
     });
     const ol = $("#zOrder"); if (ol) zDrag(ol, zs);
     const zd = $("#zD0"); if (zd) zd.onclick = () => { S.zD0open = !S.zD0open; render(); };
-    $$("[data-zd0]").forEach((b) => b.onclick = () => { zs.order = rotate(zs.order, b.dataset.zd0); S.zD0open = false; render(); });
+    $$("[data-zd0]").forEach((b) => b.onclick = () => { zs.order = rotate(zs.order, b.dataset.zd0); zs.manual = true; S.zD0open = false; render(); });
     const st0 = $("#zStart"); if (st0) st0.onclick = () => {
       const day = D.days.find((d) => d.date === zs.date), o = [...zs.order];
       if (o.length < 2) return;
