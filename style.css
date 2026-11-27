@@ -217,3 +217,11 @@ body.tablemode header, body.tablemode nav, body.tablemode .livebar { display: no
 body.tablemode main { max-width: none; padding-bottom: 30px; }
 .tmx { margin-top: 10px; }
 .dotlast { width: 10px; height: 10px; border-radius: 50%; background: var(--accent2); flex: none; }
+/* Zapisnik: raspored igrača (prevlačenje) */
+.order { list-style: none; padding: 0; margin: 6px 0 10px; }
+.order li { display: flex; align-items: center; gap: 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 4px 6px; margin: 6px 0; font-size: 15px; transition: transform .15s; position: relative; }
+.order li .grow { flex: 1; min-width: 0; }
+.order li.dragging { transition: none; z-index: 3; box-shadow: 0 6px 18px #0003; background: var(--card); }
+.order .drag { width: 40px; height: 40px; display: grid; place-items: center; font-size: 20px; color: var(--muted); cursor: grab; touch-action: none; user-select: none; flex: none; }
+.order .mv { width: 40px; height: 40px; padding: 0; background: var(--card); color: var(--fg); border: 1px solid var(--line); flex: none; }
+.order .mv:disabled { opacity: .3; }

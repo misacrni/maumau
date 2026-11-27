@@ -1091,14 +1091,14 @@ Mićko > Ugar | HIO</pre>
     const lastDay = [...D.days].filter((d) => d.date <= date).pop();
     const lg = dayGames[dayGames.length - 1] || (lastDay ? D.games.filter((g) => g.day === lastDay.n).pop() : null);
     const play = lg ? (lg.p || lastDay.p).filter((id) => ids.includes(id)) : ids.slice(0, 5);
-    return { seat, play: [...play], d0: null, reseat: null };
+    // Kolone = redosled sedenja, počev od onoga ko prvi deli (po pravilu); posle toga sve može ručno
+    return { seat, order: rotate(seat.filter((id) => play.includes(id)), zFirstDealer(D, play).id) };
   }
   // Prvi deli pobednik poslednje partije; ako ne igra, pobednik partije pre toga...
   function zFirstDealer(D, play) {
     for (let i = D.games.length - 1; i >= 0; i--) if (play.includes(D.games[i].w)) return { id: D.games[i].w, why: i === D.games.length - 1 ? "pobednik poslednje partije" : `pobednik ranije partije (${esc(pname(D.games[D.games.length - 1].w))} sada ne igra)` };
     return { id: play[0], why: "prvi u redosledu" };
   }
-  const zCols = (zs, d0) => rotate(zs.seat.filter((id) => zs.play.includes(id)), d0);
   const bookIdxIn = (D, date, book, gid) => {
     let n = 0;
     for (const d of D.days) { if (d.book !== book) continue; for (const g of D.games) if (g.day === d.n) { n++; if (g.id === gid) return n; } if (d.date === date && gid == null) return n + 1; }
@@ -1118,27 +1118,25 @@ Mićko > Ugar | HIO</pre>
     const day = D.days.find((d) => d.date === date), dayGames = day ? D.games.filter((g) => g.day === day.n) : [];
     const books = [...new Set(D.days.map((d) => d.book))];
     if (!S.zs || S.zs.date !== date) S.zs = { ...zDefaults(D, date), date, book: (active && z.book) || day?.book || D.days[D.days.length - 1]?.book || "" };
-    const zs = S.zs;
-    const fd = zFirstDealer(D, zs.play), d0 = zs.d0 && zs.play.includes(zs.d0) ? zs.d0 : fd.id;
-    const o = zCols(zs, d0), n = dayGames.length + 1;
+    const zs = S.zs, o = zs.order;
+    const fd = zFirstDealer(D, o), n = dayGames.length + 1;
     const manual = dayGames.filter((g) => !g.r).length;
-    const reseat = zs.reseat;
     return `<h2>📝 Zapisnik</h2>${zIntro()}
       <div class="box">
         <div class="spread"><b>Bleja ${fmtDate(date)} · ${n}. partija</b>
           <select id="zBook" aria-label="Sveska">${books.map((b) => `<option ${b === zs.book ? "selected" : ""}>${esc(b)}</option>`).join("")}</select></div>
         <p class="small muted">${esc(zs.book)} #${bookIdxIn(D, date, zs.book, null)}${dayGames.length ? ` · danas već upisano ${dayGames.length}${manual ? ` (ručno ${manual})` : ""}` : ""}</p>
-        <p class="small muted">Ko igra (tapni da uključiš ili isključiš):</p>
-        <div class="chips">${D.players.map((p) => `<button class="pchip ${zs.play.includes(p.id) ? "on" : ""}" style="--c:${color(p.id)}" data-zp="${p.id}">${esc(p.name)}</button>`).join("")}</div>
-        ${reseat ? `<p class="small warn">Tapkaj igrače redom kako sede (u smeru deljenja), počev od bilo koga:</p>
-          <div class="chips">${zs.play.map((id) => { const k = reseat.indexOf(id); return `<button class="pchip ${k >= 0 ? "on" : ""}" style="--c:${color(id)}" data-zr="${id}">${k >= 0 ? k + 1 + ". " : ""}${esc(pname(id))}</button>`; }).join("")}</div>
-          <button id="zReX" class="ghost small">Otkaži</button>`
-        : `<p class="small muted">Redosled kolona i deljenja:</p>
-          <ol class="seat">${o.map((id, i) => `<li>${dot(id)}<b>${esc(pname(id))}</b>${i === 0 ? ` <span class="deli">DELI</span> <span class="muted small">${zs.d0 && zs.d0 !== fd.id ? "izabrano" : fd.why}</span>` : ""}</li>`).join("")}</ol>
-          <div class="row"><button id="zReseat" class="ghost small">Drugačije sede</button><button id="zD0" class="ghost small">Neko drugi deli prvi</button></div>
-          ${S.zD0open ? `<div class="chips">${o.map((id) => `<button class="chip ${id === d0 ? "on" : ""}" data-zd0="${id}">${esc(pname(id))}</button>`).join("")}</div>` : ""}`}
-        <button id="zStart" class="primary" ${o.length >= 2 && !reseat ? "" : "disabled"}>▶︎ Počni ${n}. partiju</button>
-        ${!day && zs.play.length < 3 ? `<p class="small warn hint">Za novu bleju potrebna su najmanje 3 igrača.</p>` : ""}
+        <p class="small muted">Ko igra: tapni igrače <b>redom kako sede</b>, počev od onoga ko prvi deli. Tap na izabranog ga isključuje.</p>
+        <div class="chips">${D.players.map((p) => { const k = o.indexOf(p.id); return `<button class="pchip ${k >= 0 ? "on" : ""}" style="--c:${color(p.id)}" data-zp="${p.id}">${k >= 0 ? `${k + 1}. ` : ""}${esc(p.name)}</button>`; }).join("")}</div>
+        ${o.length ? `<button id="zClear" class="ghost small">↺ Izaberi ispočetka</button>` : ""}
+        ${o.length ? `<p class="small muted">Redosled kolona i deljenja — prevuci ☰ ili pomeri strelicama:</p>
+          <ol class="order" id="zOrder">${o.map((id, i) => `<li data-id="${id}"><span class="drag" aria-hidden="true">☰</span><span class="grow">${i + 1}. ${dot(id)}<b>${esc(pname(id))}</b>${i === 0 ? ` <span class="deli">DELI</span>` : ""}</span>
+            <button class="mv" data-zmv="${id}:-1" aria-label="Pomeri ${esc(pname(id))} gore" ${i === 0 ? "disabled" : ""}>▲</button><button class="mv" data-zmv="${id}:1" aria-label="Pomeri ${esc(pname(id))} dole" ${i === o.length - 1 ? "disabled" : ""}>▼</button></li>`).join("")}</ol>
+          <p class="small muted">Prvi deli <b>${esc(pname(o[0]))}</b> — ${o[0] === fd.id ? fd.why : `izabrano (po pravilu bi delio ${esc(pname(fd.id))})`}.</p>
+          <button id="zD0" class="ghost small">Neko drugi deli prvi (isti raspored)</button>
+          ${S.zD0open ? `<div class="chips">${o.map((id) => `<button class="chip ${id === o[0] ? "on" : ""}" data-zd0="${id}">${esc(pname(id))}</button>`).join("")}</div>` : ""}` : ""}
+        <button id="zStart" class="primary" ${o.length >= 2 ? "" : "disabled"}>▶︎ Počni ${n}. partiju</button>
+        ${!day && o.length < 3 ? `<p class="small warn hint">Za novu bleju potrebna su najmanje 3 igrača.</p>` : ""}
       </div>
       ${dayGames.length ? `<h3>Partije ove bleje</h3><ol class="list">${dayGames.map((g) => `<li>${dot(g.w)}<b>${esc(pname(g.w))}</b> ${gdesc(g)}${g.h != null ? " " + Stats.hlText(g.h) : ""} <span class="muted small">${g.r ? `📝 ${g.r.length} del.` : "ručno"}</span></li>`).join("")}</ol>
         <button id="zFinish" class="primary ghost">🏁 Završi bleju i obavesti ekipu</button>` : ""}`;
@@ -1190,28 +1188,56 @@ Mićko > Ugar | HIO</pre>
       <button id="zUndo" class="primary ghost">↩︎ Poništi poslednju ruku</button>`;
   }
 
+  // Prevlačenje igrača u listi (prst ili miš): ☰ ručka, ostali se razmiču
+  function zDrag(ol, zs) {
+    $$("li", ol).forEach((li) => {
+      const h = $(".drag", li);
+      h.onpointerdown = (e) => {
+        e.preventDefault();
+        const items = $$("li", ol), from = items.indexOf(li), rects = items.map((x) => x.getBoundingClientRect());
+        const step = rects[from].height + 6, y0 = e.clientY;
+        let to = from;
+        li.classList.add("dragging");
+        try { h.setPointerCapture(e.pointerId); } catch { }
+        h.onpointermove = (ev) => {
+          const dy = ev.clientY - y0;
+          li.style.transform = `translateY(${dy}px)`;
+          const cy = rects[from].top + rects[from].height / 2 + dy;
+          to = rects.reduce((n, r, k) => n + (k !== from && cy > r.top + r.height / 2 ? 1 : 0), 0);
+          items.forEach((x, k) => { if (x === li) return; const sh = from < to && k > from && k <= to ? -step : from > to && k >= to && k < from ? step : 0; x.style.transform = sh ? `translateY(${sh}px)` : ""; });
+        };
+        h.onpointerup = h.onpointercancel = () => {
+          h.onpointermove = h.onpointerup = h.onpointercancel = null;
+          if (to !== from) { const [x] = zs.order.splice(from, 1); zs.order.splice(to, 0, x); }
+          render();
+        };
+      };
+    });
+  }
+
   function bindZap() {
     const D = S.draft;
     let z = zLoad();
     const zs = S.zs;
     const bk = $("#zBook"); if (bk) bk.onchange = (e) => { zs.book = e.target.value; render(); };
-    $$("[data-zp]").forEach((b) => b.onclick = () => { const id = b.dataset.zp, i = zs.play.indexOf(id); i >= 0 ? zs.play.splice(i, 1) : zs.play.push(id); zs.reseat = null; render(); });
-    const rs = $("#zReseat"); if (rs) rs.onclick = () => { zs.reseat = []; render(); };
-    const rx = $("#zReX"); if (rx) rx.onclick = () => { zs.reseat = null; render(); };
-    $$("[data-zr]").forEach((b) => b.onclick = () => {
-      const id = b.dataset.zr, i = zs.reseat.indexOf(id); i >= 0 ? zs.reseat.splice(i, 1) : zs.reseat.push(id);
-      if (zs.reseat.length === zs.play.length) { zs.seat = [...zs.reseat, ...zs.seat.filter((x) => !zs.reseat.includes(x))]; store.set("mm_seat", zs.seat); zs.reseat = null; toast("Novi redosled sedenja zapamćen"); }
-      render();
+    $$("[data-zp]").forEach((b) => b.onclick = () => { const id = b.dataset.zp, i = zs.order.indexOf(id); i >= 0 ? zs.order.splice(i, 1) : zs.order.push(id); render(); });
+    const zc = $("#zClear"); if (zc) zc.onclick = () => { zs.order = []; S.zD0open = false; render(); };
+    $$("[data-zmv]").forEach((b) => b.onclick = () => {
+      const [id, dir] = b.dataset.zmv.split(":"), i = zs.order.indexOf(id), j = i + +dir;
+      if (i < 0 || j < 0 || j >= zs.order.length) return;
+      [zs.order[i], zs.order[j]] = [zs.order[j], zs.order[i]]; render();
     });
+    const ol = $("#zOrder"); if (ol) zDrag(ol, zs);
     const zd = $("#zD0"); if (zd) zd.onclick = () => { S.zD0open = !S.zD0open; render(); };
-    $$("[data-zd0]").forEach((b) => b.onclick = () => { zs.d0 = b.dataset.zd0; S.zD0open = false; render(); });
+    $$("[data-zd0]").forEach((b) => b.onclick = () => { zs.order = rotate(zs.order, b.dataset.zd0); S.zD0open = false; render(); });
     const st0 = $("#zStart"); if (st0) st0.onclick = () => {
-      const day = D.days.find((d) => d.date === zs.date);
-      if (!day && zs.play.length < 3) return toast("Za novu bleju potrebna su najmanje 3 igrača (kvorum).");
-      const d0 = zs.d0 && zs.play.includes(zs.d0) ? zs.d0 : zFirstDealer(D, zs.play).id;
-      const o = zCols(zs, d0);
+      const day = D.days.find((d) => d.date === zs.date), o = [...zs.order];
+      if (o.length < 2) return;
+      if (!day && o.length < 3) return toast("Za novu bleju potrebna su najmanje 3 igrača (kvorum).");
+      // zapamti raspored sedenja (i gde su sedeli oni koji sada ne igraju)
+      const seat = [...o, ...zs.seat.filter((id) => !o.includes(id))];
       if (!zActiveBleja(z)) z = { v: 1, date: zs.date, salt: MMCrypto.newSalt() };
-      Object.assign(z, { book: zs.book, seat: zs.seat, done: false, cur: { o, hands: [] } });
+      Object.assign(z, { book: zs.book, seat, done: false, cur: { o, hands: [] } });
       S.zh = null; S.zs = null; S.zD0open = false; zSave(z); render(); window.scrollTo(0, 0);
     };
     const fin = $("#zFinish"); if (fin) fin.onclick = async () => {
