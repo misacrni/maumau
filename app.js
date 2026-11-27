@@ -448,8 +448,8 @@ Vidimo se na bleji! 🃏`;
   const tipText = (g) => g.t === "F" ? "Finale 1 na 1" : g.t === "A" ? "Protiv svih" : `Protiv ${g.t}`;
   const names = (ids) => ids.map((i) => esc(pname(i))).join(", ").replace(/, ([^,]*)$/, " i $1");
   const goAttr = (nav) => `data-go="${esc(JSON.stringify(nav))}"`;
-  const unpackHand = (r) => Array.isArray(r) ? { w: r[0], j: !!r[1], d: r[2], s: r[3] || {} } : r;
-  const packHand = (h) => [h.w, h.j ? 1 : 0, h.d, h.s];
+  const unpackHand = (r) => Array.isArray(r) ? { w: r[0], j: !!r[1], d: r[2], s: r[3] || {}, n: !!r[4] } : r;
+  const packHand = (h) => h.n ? [h.w, h.j ? 1 : 0, h.d, h.s, 1] : [h.w, h.j ? 1 : 0, h.d, h.s];
   const winCount = (gs) => { const c = {}; gs.forEach((g) => c[g.w] = (c[g.w] || 0) + 1); return c; };
 
   function go(nav, replace) {
@@ -535,7 +535,7 @@ Vidimo se na bleji! 🃏`;
     return `<button class="item" ${goAttr({ g: g.id })}><span class="pno">${g.bookIdx}</span>
       <span class="grow"><span class="muted small">${label || `${g.idx}. partija bleje`}</span>
       <span>${dot(g.w)}<b>${esc(pname(g.w))}</b> ${gdesc(g)}</span>
-      <span class="tags">${n ? `<span class="dtag">📝 ${n} ${pl(n, "deljenje", "deljenja", "deljenja")}</span>` : `<span class="muted small">deljenja samo u svesci</span>`}${Stats.hlKind(g.h) ? `<span class="hl">${Stats.hlText(g.h)}</span>` : ""}</span></span><span class="chev">›</span></button>`;
+      <span class="tags">${n ? `<span class="dtag">${g.zs ? "📒" : "📝"} ${n} ${pl(n, "deljenje", "deljenja", "deljenja")}</span>` : `<span class="muted small">deljenja samo u svesci</span>`}${Stats.hlKind(g.h) ? `<span class="hl">${Stats.hlText(g.h)}</span>` : ""}</span></span><span class="chev">›</span></button>`;
   }
 
   function vBleja(gs) {
@@ -555,15 +555,16 @@ Vidimo se na bleji! 🃏`;
     const i = S.games.indexOf(g), prev = S.games[i - 1], next = S.games[i + 1];
     const hands = (g.r || []).map(unpackHand), dig = hands.length && g.o;
     const st = dig ? zCalc(g.o, hands) : null;
-    const tags = `<div class="tags">${dig ? `<span class="dtag">📝 Zapisnik · ${hands.length} ${pl(hands.length, "deljenje", "deljenja", "deljenja")}</span>` : ""}${Stats.hlKind(g.h) ? `<span class="hl">${Stats.hlText(g.h)}</span>` : ""}<span class="gtag">${tipText(g)}</span></div>`;
+    const tags = `<div class="tags">${dig ? `<span class="dtag">${g.zs ? "📒 Iz sveske" : "📝 Zapisnik"} · ${hands.length} ${pl(hands.length, "deljenje", "deljenja", "deljenja")}</span>` : ""}${Stats.hlKind(g.h) ? `<span class="hl">${Stats.hlText(g.h)}</span>` : ""}<span class="gtag">${tipText(g)}</span></div>`;
     let body;
     if (dig) {
-      const outs = g.o.filter((id) => st.out[id] != null && !g.l.includes(id) && id !== g.w);
+      const outs = g.o.filter((id) => st.out[id] != null && !g.l.includes(id) && id !== g.w).sort((a, b) => st.out[a] - st.out[b]);
       const peak = st.peak[g.w];
       body = sheetHTML(g.o, hands, { num: g.bookIdx, date: g.date }) + `<div class="box sum">
-        <p>${dot(g.w)}<b>${esc(pname(g.w))}</b> ${g.t === "F" ? `pobedio u finalu protiv <b>${esc(pname(g.l[0]))}</b>` : g.t === "A" ? "pobedio sve odjednom" : `pobedio protiv ${g.t} – ${st.tot[g.w] <= -101 ? "prekid na −101" : "izbacio odjednom"} <b>${names(g.l)}</b>`}${g.l.length ? ` (${g.l.map((id) => st.tot[id]).join(" · ")})` : ""}.</p>
+        <p>${dot(g.w)}<b>${esc(pname(g.w))}</b> ${g.t === "F" ? `pobedio u finalu protiv <b>${esc(pname(g.l[0]))}</b>` : g.t === "A" ? "pobedio sve odjednom" : `pobedio protiv ${g.t} – ${st.tot[g.w] <= -101 ? "prekid na −101" : "izbacio odjednom"} <b>${names(g.l)}</b>`}${g.l.length && g.l.every((id) => st.tot[id] >= 201) ? ` (${g.l.map((id) => st.tot[id]).join(" · ")})` : ""}.</p>
         ${outs.length ? `<p class="muted">Ispali ranije: ${outs.map((id) => `${esc(pname(id))} (${st.out[id] + 1}. deljenje)`).join(", ")}.</p>` : ""}
-        <p class="muted">Prvi delio ${esc(pname(hands[0].d))}${peak != null ? ` · pobednik je u toku partije imao najviše ${peak}` : ""}. D = ko je delio, * = −10, ** = −20 (žandar).</p></div>`;
+        <p class="muted">Prvi delio ${esc(pname(hands[0].d))}${peak != null ? ` · pobednik je u toku partije imao najviše ${peak}` : ""}. D = ko je delio, * = −10, ** = −20 (žandar)${hands.some((h) => Object.values(h.s || {}).includes("x")) ? ", ✗ = ispao (iznos nije zapisan)" : ""}${hands.some((h) => h.n) ? ", ✓ = dobio poslednje deljenje (nije zapisano u svesci)" : ""}.</p>
+        ${g.zs ? `<p class="muted small">Deljenja prepisana iz sveske; ko je delio računato je po pravilu.</p>` : ""}</div>`;
     } else {
       body = `<div class="box sum"><p>${dot(g.w)}<b>${esc(pname(g.w))}</b> ${g.t === "F" ? `pobedio u finalu protiv <b>${esc(pname(g.l[0]))}</b>` : g.t === "A" ? "pobedio sve" : `pobedio protiv ${names(g.l)}`}.</p>
         <p class="muted">Igrali: ${names(g.p)}.</p><p class="muted small">Deljenja ove partije su samo u svesci (${esc(g.book)}, partija #${g.bookIdx}).</p></div>`;
@@ -599,11 +600,12 @@ Vidimo se na bleji! 🃏`;
       if (stop) return;
       const active = o.filter((id) => out[id] == null), cells = {};
       active.forEach((id) => {
-        if (id === h.w) { tot[id] += h.j ? -20 : -10; cells[id] = { v: tot[id], m: h.j ? "**" : "*" }; }
+        if (id === h.w) { if (!h.n) tot[id] += h.j ? -20 : -10; cells[id] = { v: tot[id], m: h.n ? "" : h.j ? "**" : "*", n: !!h.n }; }
+        else if (h.s?.[id] === "x") cells[id] = { v: tot[id], unk: true }; // ispao, iznos nije zapisan u svesci
         else { tot[id] += (+h.s?.[id] || 0) * (h.j ? 2 : 1); cells[id] = { v: tot[id] }; }
         if (tot[id] < 201) peak[id] = Math.max(peak[id], tot[id]);
       });
-      active.forEach((id) => { if (tot[id] >= 201) { out[id] = i; cells[id].x = true; } });
+      active.forEach((id) => { if (tot[id] >= 201 || cells[id].unk) { out[id] = i; cells[id].x = true; } });
       rows.push({ cells, d: h.d, active });
       if (tot[h.w] <= -101) stop = true;
     });
@@ -639,7 +641,9 @@ Vidimo se na bleji! 🃏`;
     const rows = st.rows.map((r, i) => `<div class="sr" style="${cols}"><span class="rn">${i + 1}<i class="dl" title="delio ${esc(pname(r.d))}" style="background:${color(r.d)}">D</i></span>${o.map((id) => {
       const c = r.cells[id];
       if (!c) return `<span class="sc gone"></span>`;
+      if (c.unk) return `<span class="sc outc" title="ispao, iznos nije zapisan">✗</span>`;
       if (c.x) return `<span class="sc outc"><s>${c.v}</s></span>`;
+      if (c.n) return `<span class="sc win" title="poslednje deljenje nije zapisano u svesci">✓</span>`;
       return `<span class="sc${id === w && i === st.rows.length - 1 ? " win" : ""}">${c.v}${c.m ? `<sup>${c.m}</sup>` : ""}</span>`;
     }).join("")}</div>`).join("");
     const foot = w ? `<div class="sr foot" style="${cols}"><span></span>${o.map((id) => `<span class="sc">${id === w ? "WINNER" : ""}</span>`).join("")}</div>` : "";
@@ -740,11 +744,18 @@ Lešma > svi
 Ugar > Šomi | bez: Mićko
 Šomi > Nikod | clutch 197
 Mićko > Ugar | HIO</pre>
+      <p class="small muted">Deljenja iz sveske za već upisanu partiju: zaglavlje sa brojem partije i kolonama, pa redovi zbirova tačno kao u svesci (* = −10, ** = žandar, x = ispao bez zapisanog iznosa, - = prazno). Aplikacija proverava da li se slaže sa upisanim rezultatom.</p>
+      <pre class="fmt">ZAPIS 26.11.2026 #96: Ugar, Nikod, Maleš, Šomi
+21 17 -10* 23
+11* 46 15 74
+…
+x - x 119**</pre>
       <textarea id="impText" rows="8" placeholder="Nalepi tekst ovde…">${esc(S.impText || "")}</textarea>
       <button id="impParse" class="ghost">Proveri</button>
       ${S.imp ? `<div class="imp">${S.imp.errors.map((e) => `<p class="small warn">⚠️ ${esc(e)}</p>`).join("")}
-        ${S.imp.items.length ? `<ol class="list">${S.imp.items.map((x) => `<li><span class="muted small">${fmtDate(x.date)}${x.book ? " · " + esc(x.book) : ""}</span> ${dot(x.w)}<b>${esc(pname(x.w))}</b> ${gdesc(x)} ${x.h != null ? Stats.hlText(x.h) : ""} <span class="muted small">(${x.gp.map(pname).join(", ")})</span></li>`).join("")}</ol>
-        <button id="impAdd" class="primary" ${S.imp.errors.length ? "disabled" : ""}>+ Dodaj ${S.imp.items.length} partija</button>` : ""}</div>` : ""}
+        ${S.imp.items.length ? `<ol class="list">${S.imp.items.map((x) => `<li><span class="muted small">${fmtDate(x.date)}${x.book ? " · " + esc(x.book) : ""}</span> ${dot(x.w)}<b>${esc(pname(x.w))}</b> ${gdesc(x)} ${x.h != null ? Stats.hlText(x.h) : ""} <span class="muted small">(${x.gp.map(pname).join(", ")})</span></li>`).join("")}</ol>` : ""}
+        ${S.imp.zaps?.length ? `<ol class="list">${S.imp.zaps.map((x) => `<li>📝 <span class="muted small">${fmtDate(x.date)} · ${esc(x.book)} #${x.idx} · ${x.hands.length} ${pl(x.hands.length, "deljenje", "deljenja", "deljenja")}</span> ${dot(x.w)}<b>${esc(pname(x.w))}</b> ${gdesc(x)} ${x.h != null ? Stats.hlText(x.h) : ""} <b class="okc">✓ slaže se sa upisanim</b>${x.unwritten ? `<br><span class="small muted">Poslednje deljenje nije zapisano u svesci (pobednik ga je dobio, ostali ispali).</span>` : ""}${x.hNote ? `<br><span class="small warn">${esc(x.hNote)}</span>` : ""}${x.replace ? `<br><span class="small warn">Zamenjuje već postojeća deljenja ove partije.</span>` : ""}</li>`).join("")}</ol>` : ""}
+        ${S.imp.items.length || S.imp.zaps?.length ? `<button id="impAdd" class="primary" ${S.imp.errors.length ? "disabled" : ""}>+ Dodaj ${[S.imp.items.length ? `${S.imp.items.length} partija` : "", S.imp.zaps?.length ? `deljenja za ${S.imp.zaps.length} ${pl(S.imp.zaps.length, "partiju", "partije", "partija")}` : ""].filter(Boolean).join(" i ")}</button>` : ""}</div>` : ""}
     </details>
     <div class="row sticky-save"><button id="saveGh" class="primary" ${S.dirty || store.get("mm_draft") ? "" : "disabled"} title="${S.dirty || store.get("mm_draft") ? "" : "Nema novih izmena za objavu"}">${S.dirty || store.get("mm_draft") ? "☁️ Sačuvaj i objavi" : "☁️ Nema izmena za objavu"}</button><button id="discard" class="ghost">Odbaci izmene</button></div>
     <details class="box" id="setBox" ${S.setOpen ? "open" : ""}><summary>⚙️ Podešavanja (admin, igrači i boje, lozinka, izvoz)</summary>
@@ -823,9 +834,25 @@ Mićko > Ugar | HIO</pre>
   function parseImport(text, D) {
     const norm = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/gi, "dj").toLowerCase().trim();
     const find = (name) => { const n = norm(name); if (!n) return null; return D.players.find((p) => norm(p.name) === n) || D.players.find((p) => norm(p.name).startsWith(n) && n.length >= 3) || null; };
-    const items = [], errors = [];
-    let date = S.edit?.date || today(), book = "", players = null;
+    const items = [], errors = [], zaps = [];
+    let date = S.edit?.date || today(), book = "", players = null, zb = null;
     text.split(/\r?\n/).forEach((raw, i) => {
+      // ZAPIS dd.mm.gggg #96: Ugar, Nikod, Maleš, Šomi  + redovi zbirova kao u svesci
+      const zh = raw.trim().match(/^zapis\s+(\d{1,2})\.(\d{1,2})\.(\d{4})\.?\s*#\s*(\d+)\s*:\s*(.+)$/i);
+      if (zh) {
+        const ps = zh[5].split(/[,;]/).map((x) => x.trim()).filter(Boolean).map((n) => [n, find(n)]);
+        ps.filter((x) => !x[1]).forEach((x) => errors.push(`Red ${i + 1}: nepoznat igrač „${x[0]}“`));
+        zb = { line: i + 1, date: `${zh[3]}-${zh[2].padStart(2, "0")}-${zh[1].padStart(2, "0")}`, idx: +zh[4], cols: ps.map((x) => x[1]?.id).filter(Boolean), rows: [] };
+        zaps.push(zb); return;
+      }
+      if (zb) {
+        const toks = raw.replace(/[–—]/g, "-").replace(/\s#.*$/, "").trim().split(/\s+/).filter(Boolean);
+        if (toks.length && toks.every((t) => /^(-?\d+\*{0,2}|x|-)$/i.test(t))) {
+          if (/#\s*PROVERI/i.test(raw)) errors.push(`Red ${i + 1}: agent nije siguran – ${raw.split("#").pop().trim()}`);
+          zb.rows.push({ line: i + 1, toks }); return;
+        }
+        zb = null;
+      }
       const line = raw.replace(/[–—]/g, "-").replace(/\s#.*$/, "").trim(); if (!line || line.startsWith("#")) return;
       if (/#\s*PROVERI/i.test(raw)) errors.push(`Red ${i + 1}: agent nije siguran – ${raw.split("#").pop().trim()}`);
       const ln = `Red ${i + 1}: `;
@@ -862,8 +889,64 @@ Mićko > Ugar | HIO</pre>
       if (t === "A" && gp.length < 3) return errors.push(ln + "„svi“ traži bar 3 igrača u partiji");
       items.push({ date, book, gp, w: w.id, t, l, h, fromImport: true });
     });
-    if (!items.length && !errors.length) errors.push("Nema partija u tekstu.");
-    return { items, errors };
+    const zapItems = zaps.map((z) => zapisCheck(z, D, errors)).filter(Boolean);
+    if (!items.length && !zapItems.length && !errors.length) errors.push("Nema partija u tekstu.");
+    return { items, errors, zaps: zapItems };
+  }
+  // Redovi zbirova (kao u svesci) → deljenja; svaka greška se prijavljuje sa brojem reda
+  function zapisHands(cols, rows) {
+    const err = [], hands = [], prev = Object.fromEntries(cols.map((id) => [id, 0])), out = new Set();
+    rows.forEach(({ line, toks }) => {
+      if (err.length) return; // posle prve greške ostali redovi nemaju smisla
+      const ln = `Red ${line}: `;
+      if (toks.length !== cols.length) return err.push(ln + `${toks.length} vrednosti, a kolona je ${cols.length}`);
+      const cell = (t) => /^-?\d/.test(t) ? { v: parseInt(t, 10), st: (t.match(/\*+$/) || [""])[0].length } : null;
+      const cs = toks.map(cell), wi = cols.filter((id, k) => cs[k]?.st);
+      if (wi.length !== 1) return err.push(ln + (wi.length ? "više igrača sa *" : "nema ko je završio ruku (*)"));
+      const w = wi[0], j = cs[cols.indexOf(w)].st === 2, s = {};
+      if (out.has(w)) return err.push(ln + `${pname(w)} je već ispao`);
+      const need = prev[w] - (j ? 20 : 10);
+      if (cs[cols.indexOf(w)].v !== need) return err.push(ln + `${pname(w)} završio ruku: ${prev[w]} ${j ? "− 20" : "− 10"} = ${need}, a piše ${cs[cols.indexOf(w)].v}`);
+      for (const [k, id] of cols.entries()) {
+        if (id === w) continue;
+        const c = cs[k];
+        if (out.has(id)) { if (c) err.push(ln + `${pname(id)} je već ispao, a ima broj ${c.v}`); continue; }
+        if (!c) { s[id] = "x"; continue; }
+        const d = c.v - prev[id];
+        if (d < 0) { err.push(ln + `${pname(id)} pada sa ${prev[id]} na ${c.v} bez *`); continue; }
+        if (j && d % 2) { err.push(ln + `žandar: ${pname(id)} ${prev[id]} → ${c.v}, razlika ${d} nije parna`); continue; }
+        s[id] = j ? d / 2 : d;
+      }
+      cols.forEach((id, k) => { if (out.has(id)) return; if (id === w) prev[id] = need; else if (s[id] === "x") out.add(id); else { prev[id] = cs[k].v; if (prev[id] >= 201) out.add(id); } });
+      hands.push({ w, j, d: null, s });
+    });
+    return { hands, err };
+  }
+  // Zapis iz sveske: proveri da li se slaže sa već upisanom partijom (pobednik, kraj, igrači)
+  function zapisCheck(z, D, errors) {
+    const ln = `Zapis #${z.idx} (red ${z.line}): `;
+    if (z.cols.length < 2) return errors.push(ln + "treba bar 2 igrača"), null;
+    if (!z.rows.length) return errors.push(ln + "nema redova sa zbirovima"), null;
+    const r = zapisHands(z.cols, z.rows);
+    if (r.err.length) return r.err.forEach((e) => errors.push(`Zapis #${z.idx}, ${e}`)), null;
+    const day = D.days.find((d) => d.date === z.date), gs = day ? D.games.filter((g) => g.day === day.n) : [];
+    const g = gs.find((x) => bookIdxIn(D, z.date, day.book, x.id) === z.idx);
+    if (!g) return errors.push(ln + `partija #${z.idx} za ${fmtDate(z.date)} nije upisana — prvo upiši rezultat, pa nalepi zapis.`), null;
+    let hands = r.hands, st = zCalc(z.cols, hands), unwritten = false;
+    if (!st.end && st.active.includes(g.w) && st.active.length > 1) { // poslednje deljenje nije zapisano u svesci
+      hands = [...hands, { w: g.w, j: false, n: 1, d: null, s: Object.fromEntries(st.active.filter((id) => id !== g.w).map((id) => [id, "x"])) }];
+      st = zCalc(z.cols, hands); unwritten = true;
+    }
+    hands.forEach((h, k) => { h.d = k ? zDealer(z.cols, hands.slice(0, k), zCalc(z.cols, hands.slice(0, k))) : z.cols[0]; });
+    if (!st.end) return errors.push(ln + `partija nema kraj — u igri su još ${st.active.map(pname).join(", ")}`), null;
+    const e = st.end, gp = g.p || day.p, same = (a, b) => a.length === b.length && a.every((x) => b.includes(x));
+    const txt = (x) => `${pname(x.w)} ${x.t === "F" ? "finale vs " + pname(x.l[0]) : x.t === "A" ? "protiv svih" : "protiv " + x.l.map(pname).join(", ")}`;
+    const diffs = [];
+    if (!same(gp, z.cols)) diffs.push(`igrači – upisano ${gp.map(pname).join(", ")}, u zapisu ${z.cols.map(pname).join(", ")}`);
+    if (g.w !== e.w || g.t !== e.t || !same(g.l, e.l)) diffs.push(`upisano „${txt(g)}“, a iz deljenja izlazi „${txt(e)}“`);
+    if (diffs.length) return errors.push(ln + "NE slaže se: " + diffs.join("; ")), null;
+    const hNote = (g.h ?? null) !== (e.h ?? null) ? `istaknuto: upisano ${g.h == null ? "ništa" : Stats.hlText(g.h)}, iz deljenja ${e.h == null ? "ništa" : Stats.hlText(e.h)} — biće upisano iz deljenja` : "";
+    return { date: z.date, book: day.book, idx: z.idx, gid: g.id, w: e.w, t: e.t, l: e.l, h: e.h, cols: z.cols, hands, hNote, unwritten, replace: !!g.r };
   }
   function defaultPlayersFor(D, date, items) {
     const prevItem = [...items].reverse().find((x) => x.date === date); if (prevItem) return [...prevItem.gp];
@@ -1009,7 +1092,14 @@ Mićko > Ugar | HIO</pre>
       const its = S.imp.items;
       const dup = [...new Set(its.map((x) => x.date))].filter((dt) => { const d = D.days.find((y) => y.date === dt); return d && D.games.some((g) => g.day === d.n && g.r); });
       if (dup.length && !(await ask(`Za ${dup.map(fmtDate).join(", ")} već postoje partije iz zapisnika. Ako je ovo ista bleja iz sveske, partije bi se upisale dvaput.\nIpak dodaj?`, "Ipak dodaj"))) return; its.forEach((x) => putGame(D, x, null));
-      saveDraft(); E.date = its[its.length - 1].date; reset(); S.imp = null; S.impText = ""; toast(`Dodato ${its.length} partija — proveri pa „Sačuvaj i objavi“`); render();
+      const zs = S.imp.zaps || [];
+      zs.forEach((x) => {
+        const g = D.games.find((y) => y.id === x.gid); if (!g) return;
+        g.o = [...x.cols]; g.r = x.hands.map(packHand); g.zs = 1;
+        if (x.h == null) delete g.h; else g.h = x.h;
+      });
+      saveDraft(); E.date = (its[its.length - 1] || zs[zs.length - 1]).date; reset(); S.imp = null; S.impText = "";
+      toast(`Dodato: ${[its.length ? its.length + " partija" : "", zs.length ? "deljenja za " + zs.length + " partije" : ""].filter(Boolean).join(" i ")} — proveri pa „Sačuvaj i objavi“`); render();
     };
     $("#discard").onclick = async () => { if (!(await ask("Odbaciti sve nesačuvane izmene? Vraća se poslednja objavljena verzija.", "Odbaci"))) return; store.del("mm_draft"); S.draft = null; S.dirty = false; S.edit = null; S.imp = null; S.impText = ""; S.players = S.data.players; toast("Izmene odbačene"); render(); };
     $("#saveCfg").onclick = async () => {

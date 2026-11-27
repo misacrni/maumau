@@ -223,3 +223,4 @@ body.tablemode main { max-width: none; padding-bottom: 30px; }
 .order li .grow { flex: 1; min-width: 0; }
 .order li.dragging { transition: none; z-index: 3; box-shadow: 0 6px 18px #0003; background: var(--card); }
 .order .drag { width: 40px; height: 40px; display: grid; place-items: center; font-size: 20px; color: var(--muted); cursor: grab; touch-action: none; user-select: none; flex: none; }
+.okc { color: var(--accent); }
